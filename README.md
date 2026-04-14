@@ -14,11 +14,19 @@ The **Finger Independence Analyzer** is a computer vision application designed t
 
 ### Requirements
 
-Ensure you have Python 3.8+ installed.
+Ensure you have Python 3.8+ installed. 
+
+> [!NOTE]
+> For **macOS ARM64 (Apple Silicon)** and **Python 3.12+**, it is highly recommended to use a virtual environment and pin MediaPipe to version `0.10.13` to avoid compatibility issues with the legacy `solutions` API.
 
 ```bash
 git clone <repository_url>
 cd finger-independence
+
+# Create and activate a virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate
+
 pip install -r requirements.txt
 ```
 

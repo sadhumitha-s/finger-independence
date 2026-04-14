@@ -7,7 +7,10 @@ from config import Config
 
 class Analytics:
     def __init__(self):
-        self.filename = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        self.output_dir = "data"
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+        self.filename = os.path.join(self.output_dir, f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
         # Results map finger_index -> score
         self.results: Dict[int, float] = {}
 
