@@ -4,7 +4,7 @@ A computer vision system that quantifies and analyzes individual finger motor co
 
 ---
 
-## How It Works (Explainability)
+## How It Works 
 
 The system transforms raw 2D video input into a robust 3D kinesiological analysis through several key stages:
 
@@ -23,7 +23,8 @@ For every frame, the analyzer computes:
 
 ### 3. The Independence Score
 The core metric is the Independence Ratio, calculated during a target finger's exercise window:
-$$Independence Score = \frac{TargetFingerMotion}{TargetFingerMotion + \sum OtherFingerMotion}$$
+$$Independence Score = \frac{TargetFingerMotion}{TargetFingerMotion + \sum OtherFingerMotion}$$  
+
 A score of 1.0 indicates perfect isolation (only the target finger moved), while lower scores quantify the degree to which other fingers "followed" the movement.
 
 ---
