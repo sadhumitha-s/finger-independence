@@ -5,12 +5,13 @@ from config import Config
 class FingerAngleCalculator:
     # Landmarks for MCP, PIP, DIP joints of each finger
     # For thumb, it's CMC(1), MCP(2), IP(3)
-    FINGER_JOINTS = [
-        (1, 2, 3),    # Thumb
-        (5, 6, 7),    # Index
-        (9, 10, 11),  # Middle
-        (13, 14, 15), # Ring
-        (17, 18, 19)  # Pinky
+    # Joint triples for MCP-focused tracking
+    FINGER_BASE_JOINTS = [
+        None,         # Thumb handled specially
+        (0, 5, 6),    # Index (Wrist, MCP, PIP)
+        (0, 9, 10),   # Middle
+        (0, 13, 14),  # Ring
+        (0, 17, 18)   # Pinky
     ]
 
     @staticmethod
@@ -37,9 +38,17 @@ class FingerAngleCalculator:
 
     @staticmethod
     def get_finger_angles(landmarks: List[Tuple[float, float, float]]) -> List[float]:
-        """Returns the PIP joint angles for all 5 fingers."""
+        """Returns the weighted MCP/CMC angles for all fingers."""
         angles = []
-        for joints in FingerAngleCalculator.FINGER_JOINTS:
+        
+        # 1. Handle Thumb specially (80% MCP, 20% CMC)
+        angle_mcp = FingerAngleCalculator.calculate_angle(landmarks[1], landmarks[2], landmarks[3])
+        angle_cmc = FingerAngleCalculator.calculate_angle(landmarks[0], landmarks[1], landmarks[2])
+        thumb_combined = (angle_mcp * Config.THUMB_MCP_WEIGHT) + (angle_cmc * Config.THUMB_CMC_WEIGHT)
+        angles.append(thumb_combined)
+        
+        # 2. Handle other fingers (Index to Pinky)
+        for joints in FingerAngleCalculator.FINGER_BASE_JOINTS[1:]:
             idx_a, idx_b, idx_c = joints
             angle = FingerAngleCalculator.calculate_angle(
                 landmarks[idx_a],
@@ -47,6 +56,7 @@ class FingerAngleCalculator:
                 landmarks[idx_c]
             )
             angles.append(angle)
+            
         return angles
 
     @staticmethod

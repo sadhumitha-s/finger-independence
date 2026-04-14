@@ -1,69 +1,103 @@
 # Finger Independence Analyzer
 
-The **Finger Independence Analyzer** is a computer vision application designed to evaluate and quantify how independently each finger can move relative to the others. It utilizes real-time hand pose estimation via MediaPipe and OpenCV to calculate a "Finger Independence Score" for each finger.
+A computer vision system that quantifies and analyzes individual finger motor control. By leveraging real-time 3D hand pose estimation, the Finger Independence Analyzer provides precise metrics on joint isolation, unintended "leakage" movement, and overall dexterity.
 
-## Features
+---
 
-- **Real-Time Tracking**: Robust hand landmark tracking using MediaPipe.
-- **Finger Bend Detection**: Uses geometry-based math on the MCP, PIP, and DIP joints to precisely track movement and actively highlights bent fingers in the UI.
-- **Guided Exercise Mode**: A state machine implementation that walks users through testing each finger independently (Prepare -> Record).
-- **Interactive UI**: Custom OpenCV-based UI elements showing user instructions, progress, timers, and real-time score bar charts.
-- **Analytics & Data Export**: Saves testing session results dynamically to timestamped CSV files and presents scores on static Matplotlib plots at the conclusion of a session.
+## How It Works (Explainability)
+
+The system transforms raw 2D video input into a robust 3D kinesiological analysis through several key stages:
+
+### 1. 3D Palm Plane Reconstruction
+Unlike basic gesture recognizers, this system constructs a dynamic 3D Coordinate System localized to the user's hand. 
+- **Reference Points**: It uses the Wrist (0), Index MCP (5), and Pinky MCP (17) to define the Palm Plane.
+- **Normal Vector Calculation**: A normal vector (pointing out from the palm) is calculated using the cross product of the palm vectors.
+- **Normalization**: This allows the system to remain accurate even as the user tilts or rotates their hand in front of the camera. The system includes orientation validation to ensure data is only recorded when the palm is correctly oriented toward the sensor.
+
+### 2. Biomechanical Metrics
+For every frame, the analyzer computes:
+- **Finger Lift**: The angle (in degrees) of the finger direction relative to the palm plane.
+- **Fingertip Height**: The perpendicular distance from the MCP joint to the fingertip along the palm normal.
+- **Sideways Drift**: Detection of unintended lateral movement during vertical exercises.
+- **Specialized Thumb Logic**: Includes specific calibration for the thumb's unique range of motion involving the CMC and MCP joints.
+
+### 3. The Independence Score
+The core metric is the Independence Ratio, calculated during a target finger's exercise window:
+$$Independence Score = \frac{TargetFingerMotion}{TargetFingerMotion + \sum OtherFingerMotion}$$
+A score of 1.0 indicates perfect isolation (only the target finger moved), while lower scores quantify the degree to which other fingers "followed" the movement.
+
+---
+
+## Key Features
+
+- **Robust Hand Tracking**: Real-time 21-point landmark extraction and full 3D hand pose reconstruction.
+- **Handedness Independence**: Universal support for both Left and Right hand orientations with automatic coordinate adjustment.
+- **Guided Exercise Mode**: A structured state machine (Prepare -> Record -> Score) that facilitates standardized data capture for all five digits.
+- **Live Feedback Engine**: High-performance visualization of movement intensity and real-time isolation scores.
+- **Automated Analytics**: Session logging to CSV format and post-session reporting via Matplotlib.
+
+---
 
 ## Installation
 
 ### Requirements
+- **Python 3.8+**
+- Webcam
 
-Ensure you have Python 3.8+ installed. 
-
-> [!NOTE]
-> For **macOS ARM64 (Apple Silicon)** and **Python 3.12+**, it is highly recommended to use a virtual environment and pin MediaPipe to version `0.10.13` to avoid compatibility issues with the legacy `solutions` API.
+> [!TIP]
+> **macOS (Apple Silicon) Users**  
+> Use a virtual environment and MediaPipe version `0.10.13` for best compatibility and performance.
 
 ```bash
+# Clone the repository
 git clone <repository_url>
 cd finger-independence
 
-# Create and activate a virtual environment (recommended)
+# Setup virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
+# Install dependencies
 pip install -r requirements.txt
 ```
 
+---
+
 ## Usage
 
-Start the main application using:
-
+Launch the main application:
 ```bash
 python main.py
 ```
 
-### Controls During Application Run
+### Session Controls
+| Key | Action |
+|:---:|:---|
+| `Space` | Start Session / Advance to next finger |
+| `P` | Pause/Resume exercise |
+| `R` | Reset entire session |
+| `S` | Skip current finger |
+| `Q` | Quit application |
 
-- **Spacebar**: Start the session or continue to the next state from `IDLE`.
-- **P**: Pause / Unpause the current exercise. 
-- **R**: Restart the session entirely.
-- **S**: Skip the current finger's recording and immediately go to scoring.
-- **Q**: Quit the application.
+---
 
 ## System Architecture
 
-The project is structured according to modular SDLC principles to ensure maintainability:
-- `main.py`: Application entry point and orchestrator.
-- `hand_tracker.py`: MediaPipe bounding box and 21-point tracking logic.
-- `finger_angles.py`: Angle-based computations for bend detection.
-- `motion_tracker.py`: Displacement tracking via trailing windows.
-- `score_engine.py`: Encapsulated score calculations protecting against missing bounds/data.
-- `exercise_mode.py`: Finite state machine coordinating session timing.
-- `visualizer.py`: OpenCV geometric drawing logic.
-- `analytics.py`: Data persistence and offline chart plotting via Matplotlib.
+The project follows modular engineering principles:
+- **`hand_tracker.py`**: MediaPipe abstraction and landmark filtering.
+- **`analyzer.py`**: Core biomechanical math (3D planes, vectors, and lift).
+- **`score_engine.py`**: Statistical processing of motion data into independence scores.
+- **`exercise_mode.py`**: Finite State Machine managing timing and user flow.
+- **`visualizer.py`**: Rendering of the interface and skeletal overlays.
+- **`analytics.py`**: Data serialization and reporting.
+
+---
 
 ## Testing
 
-This project features comprehensive edge-case tests covering core components like vector math, motion smoothing, edge condition bounds, and finite state machine transitions. Tests are created with `pytest`.
-
-Run the test suite via:
-
+The system includes a suite of tests for coordinate transforms, motion smoothing, and score edge cases.
 ```bash
 python -m pytest tests/
 ```
+
+

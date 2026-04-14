@@ -31,10 +31,18 @@ class Visualizer:
         x_offset = (self.left_w - new_w) // 2
         canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
 
-    def draw_ui(self, canvas: np.ndarray, instruction: str, progress: float, scores: Dict[int, float]):
+    def draw_ui(self, canvas: np.ndarray, instruction: str, progress: float, scores: Dict[int, float], is_valid_orientation: bool = True):
         # Draw instruction text
+        color = Config.COLOR_TEXT
+        if "KEEP" in instruction or "INVALID" in instruction:
+            color = (0, 165, 255) # Orange or Warning color
+        
         cv2.putText(canvas, instruction, (self.left_w + 20, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, Config.COLOR_TEXT, 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+        
+        if not is_valid_orientation:
+             cv2.putText(canvas, "WRONG HAND FACING", (self.left_w + 20, 80),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, Config.COLOR_WARNING, 1)
 
         # Draw progress bar
         bar_y = 100

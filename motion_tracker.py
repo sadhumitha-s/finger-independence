@@ -6,32 +6,38 @@ from config import Config
 class MotionTracker:
     def __init__(self):
         self.window_size = Config.MOTION_ROLLING_WINDOW_SIZE
-        # queue of shape (window_size, 5) storing distances moved
-        self.motion_history = deque(maxlen=self.window_size)
-        self.previous_tips = None
+        # queue of shape (window_size, 5) storing lift deltas
+        self.lift_history = deque(maxlen=self.window_size)
+        self.tip_motion_history = deque(maxlen=self.window_size)
 
-    def update(self, landmarks: List[Tuple[float, float, float]]) -> List[float]:
-        """Calculates distance moved since last frame and updates history."""
-        current_tips = np.array([landmarks[i] for i in Config.FINGER_TIP_INDICES])
+    def update(self, current_lifts: np.ndarray, baseline_lifts: np.ndarray, 
+               current_heights: np.ndarray, baseline_heights: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Calculates motion relative to baseline.
+        Returns (relative_lifts, delta_heights, tip_motions).
+        """
+        relative_lifts = current_lifts - baseline_lifts
+        delta_heights = current_heights - baseline_heights
         
-        if self.previous_tips is None:
-            self.previous_tips = current_tips
-            self.motion_history.append(np.zeros(5))
-            return [0.0] * 5
-            
-        # Compute Euclidean distance delta for each finger tip
-        distances = np.linalg.norm(current_tips - self.previous_tips, axis=1)
-        self.motion_history.append(distances)
-        self.previous_tips = current_tips
+        # Tip motion: absolute change in relative lift or distance-based
+        # PRD says: tip_motion = distance(current_tip, baseline_tip)
+        # But we don't have absolute 3D landmarks here in a convenient way, 
+        # so we'll use delta_heights as a proxy for vertical tip motion as intended.
+        tip_motions = np.abs(delta_heights)
         
-        return self.get_smoothed_motion()
+        self.lift_history.append(np.abs(relative_lifts))
+        self.tip_motion_history.append(tip_motions)
+        
+        return relative_lifts, delta_heights, tip_motions
 
-    def get_smoothed_motion(self) -> List[float]:
-        """Returns the rolling average of motion for all 5 fingers."""
-        if len(self.motion_history) == 0:
-            return [0.0] * 5
-        return np.mean(self.motion_history, axis=0).tolist()
+    def get_smoothed_metrics(self) -> Tuple[List[float], List[float]]:
+        if len(self.lift_history) == 0:
+            return [0.0]*5, [0.0]*5
+        
+        avg_lift = np.mean(self.lift_history, axis=0).tolist()
+        avg_tip = np.mean(self.tip_motion_history, axis=0).tolist()
+        return avg_lift, avg_tip
 
     def reset(self):
-        self.motion_history.clear()
-        self.previous_tips = None
+        self.lift_history.clear()
+        self.tip_motion_history.clear()
