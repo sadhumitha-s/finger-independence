@@ -39,6 +39,20 @@ A score of 1.0 indicates perfect isolation (only the target finger moved), while
 
 ---
 
+## Tech Stack
+
+| Component | Technology | Use Case |
+| :--- | :--- | :--- |
+| **Language** | Python 3.10+ | Primary development language |
+| **CV Engine** | [MediaPipe](https://mediapipe.dev/) | 21-point 3D hand landmark extraction |
+| **Processing** | NumPy | High-performance vector mathematics and geometry |
+| **Interface** | OpenCV | Camera capture, frame processing, and UI rendering |
+| **Analytics** | Matplotlib | Generation of session performance graphs |
+| **Data** | CSV / JSON | Session storage and metrics exporting |
+| **Testing** | PyTest | Unit testing for biomechanical calculations |
+
+---
+
 ## Installation
 
 ### Requirements
@@ -84,7 +98,44 @@ python main.py
 
 ## System Architecture
 
-The project follows modular engineering principles:
+The project follows a modular pipeline architecture, processing raw visual data into structured biomechanical metrics.
+
+```mermaid
+graph TD
+    subgraph Input Layer
+        A[Camera Stream] --> B[OpenCV Frame Capture]
+    end
+
+    subgraph Perception Layer
+        B --> C[MediaPipe Hand Tracker]
+        C --> D[3D Landmark Extraction]
+    end
+
+    subgraph Analysis Layer
+        D --> E[Hand Analyzer]
+        E --> F[Palm Plane Reconstruction]
+        E --> G[Biomechanical Metrics]
+        G --> H[Lift, Height & Drift]
+    end
+
+    subgraph Processing Layer
+        H --> I[Motion Tracker]
+        I --> J[Score Engine]
+        K[Exercise State Machine] <--> J
+    end
+
+    subgraph Output Layer
+        M[Visualizer Engine] <--> K
+        K --> N[Analytics & Reporting]
+        M --> O[User UI Feedback]
+    end
+
+    style C fill:#f96,stroke:#333,stroke-width:2px
+    style J fill:#69f,stroke:#333,stroke-width:2px
+    style K fill:#9f6,stroke:#333,stroke-width:2px
+```
+
+### Component Breakdown
 - **`hand_tracker.py`**: MediaPipe abstraction and landmark filtering.
 - **`analyzer.py`**: Core biomechanical math (3D planes, vectors, and lift).
 - **`score_engine.py`**: Statistical processing of motion data into independence scores.
