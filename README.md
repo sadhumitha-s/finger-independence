@@ -102,29 +102,29 @@ The project follows a modular pipeline architecture, processing raw visual data 
 
 ```mermaid
 graph TD
-    subgraph Input Layer
+    subgraph "Input Layer"
         A[Camera Stream] --> B[OpenCV Frame Capture]
     end
 
-    subgraph Perception Layer
+    subgraph "Perception Layer"
         B --> C[MediaPipe Hand Tracker]
         C --> D[3D Landmark Extraction]
     end
 
-    subgraph Analysis Layer
+    subgraph "Analysis Layer"
         D --> E[Hand Analyzer]
         E --> F[Palm Plane Reconstruction]
         E --> G[Biomechanical Metrics]
         G --> H[Lift, Height & Drift]
     end
 
-    subgraph Processing Layer
+    subgraph "Processing Layer"
         H --> I[Motion Tracker]
         I --> J[Score Engine]
-        K[Exercise State Machine\n(Calibrate -> Prepare -> Record -> Score)] <--> J
+        K["Exercise State Machine<br/>(Calibrate -> Prepare -> Record -> Score)"] <--> J
     end
 
-    subgraph Output Layer
+    subgraph "Output Layer"
         M[Visualizer Engine] <--> K
         K --> N[Analytics & Reporting]
         M --> O[User UI Feedback]
