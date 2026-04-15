@@ -1,7 +1,10 @@
 import cv2
 import mediapipe as mp
 from typing import Optional, List, Tuple
+import logging
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 class LandmarkSmoother:
     def __init__(self, alpha: float):
@@ -23,6 +26,9 @@ class LandmarkSmoother:
         self.previous_landmarks = smoothed
         return smoothed
 
+    def reset(self):
+        self.previous_landmarks = None
+
 class HandTracker:
     def __init__(self):
         self.mp_hands = mp.solutions.hands
@@ -43,8 +49,15 @@ class HandTracker:
             image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image_rgb.flags.writeable = False
             self.results = self.hands.process(image_rgb)
-            return self.results.multi_hand_landmarks is not None
-        except Exception:
+            has_hand = self.results is not None and self.results.multi_hand_landmarks is not None
+            if not has_hand:
+                # Reset filter so reacquired hand does not blend with stale pose history.
+                self.smoother.reset()
+            return has_hand
+        except Exception as exc:
+            self.results = None
+            self.smoother.reset()
+            logger.debug("HandTracker.process_frame failed: %s", exc)
             return False
 
     def draw_landmarks(self, frame: cv2.Mat):
@@ -64,6 +77,9 @@ class HandTracker:
         if self.results and self.results.multi_hand_landmarks:
             hand_landmarks = self.results.multi_hand_landmarks[0]
             raw = [(lm.x, lm.y, lm.z) for lm in hand_landmarks.landmark]
+            if len(raw) != 21:
+                self.smoother.reset()
+                return None, None
             
             handedness = None
             if self.results.multi_handedness:

@@ -68,6 +68,10 @@ def main():
                     cv2.circle(frame, (px, py), 15, Config.COLOR_ACCENT, 2)
                     
         exercise.update()
+
+        # Always start calibration from a clean buffer to avoid stale frame carry-over.
+        if previous_state != State.CALIBRATE and exercise.state == State.CALIBRATE:
+            calibration_frames.clear()
         
         # Calibration logic
         if landmarks and exercise.state == State.CALIBRATE and not exercise.is_paused:
@@ -138,11 +142,13 @@ def main():
             if exercise.state == State.IDLE:
                 exercise.start()
                 analytics.reset()
+                calibration_frames.clear()
         elif key == ord('p'):
             exercise.pause()
         elif key == ord('r'):
             exercise.restart()
             analytics.reset()
+            calibration_frames.clear()
         elif key == ord('s'):
             exercise.skip_finger()
 

@@ -3,42 +3,45 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from motion_tracker import MotionTracker
-from config import Config
 import numpy as np
 
 def test_motion_tracker_initialization():
     tracker = MotionTracker()
-    assert len(tracker.motion_history) == 0
+    assert len(tracker.lift_history) == 0
+    assert len(tracker.tip_motion_history) == 0
 
-def test_motion_tracker_first_frame():
-    tracker = MotionTracker()
-    # 21 landmarks
-    landmarks = [(0.0, 0.0, 0.0)] * 21
-    smoothed = tracker.update(landmarks)
-    assert smoothed == [0.0] * 5
 
-def test_motion_tracker_movement():
+def test_motion_tracker_update_returns_expected_deltas():
     tracker = MotionTracker()
-    
-    # Base landmarks
-    landmarks1 = [(0.0, 0.0, 0.0)] * 21
-    tracker.update(landmarks1)
-    
-    # Second frame, thumb moves by 1 unit on x axis
-    landmarks2 = [(0.0, 0.0, 0.0)] * 21
-    thumb_idx = Config.FINGER_TIP_INDICES[0]
-    landmarks2[thumb_idx] = (1.0, 0.0, 0.0)
-    
-    smoothed = tracker.update(landmarks2)
-    # The motion history now has [0,0,0,0,0] and [1,0,0,0,0]
-    # mean should be [0.5, 0, 0, 0, 0]
-    assert np.isclose(smoothed[0], 0.5)
-    assert smoothed[1:] == [0.0] * 4
+    current_lifts = np.array([10.0, -3.0, 0.0, 4.0, -7.0], dtype=float)
+    baseline_lifts = np.array([7.0, -1.0, 0.0, 2.0, -2.0], dtype=float)
+    current_heights = np.array([0.5, -0.4, 0.0, 0.1, -0.2], dtype=float)
+    baseline_heights = np.array([0.2, -0.3, 0.0, -0.1, -0.5], dtype=float)
+
+    relative_lifts, delta_heights, tip_motions = tracker.update(
+        current_lifts, baseline_lifts, current_heights, baseline_heights
+    )
+
+    np.testing.assert_allclose(relative_lifts, np.array([3.0, -2.0, 0.0, 2.0, -5.0], dtype=float))
+    np.testing.assert_allclose(delta_heights, np.array([0.3, -0.1, 0.0, 0.2, 0.3], dtype=float))
+    np.testing.assert_allclose(tip_motions, np.array([0.3, 0.1, 0.0, 0.2, 0.3], dtype=float))
+
+
+def test_smoothed_metrics_empty_then_average():
+    tracker = MotionTracker()
+    avg_lift, avg_tip = tracker.get_smoothed_metrics()
+    assert avg_lift == [0.0] * 5
+    assert avg_tip == [0.0] * 5
+
+    tracker.update(np.array([1, 2, 3, 4, 5], dtype=float), np.zeros(5), np.zeros(5), np.zeros(5))
+    tracker.update(np.array([3, 2, 1, 0, -1], dtype=float), np.zeros(5), np.zeros(5), np.zeros(5))
+    avg_lift, avg_tip = tracker.get_smoothed_metrics()
+    np.testing.assert_allclose(avg_lift, [2.0, 2.0, 2.0, 2.0, 3.0])
+    np.testing.assert_allclose(avg_tip, [0.0, 0.0, 0.0, 0.0, 0.0])
 
 def test_reset():
     tracker = MotionTracker()
-    landmarks = [(0.0, 0.0, 0.0)] * 21
-    tracker.update(landmarks)
+    tracker.update(np.ones(5), np.zeros(5), np.ones(5), np.zeros(5))
     tracker.reset()
-    assert len(tracker.motion_history) == 0
-    assert tracker.previous_tips is None
+    assert len(tracker.lift_history) == 0
+    assert len(tracker.tip_motion_history) == 0

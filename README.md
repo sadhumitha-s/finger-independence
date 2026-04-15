@@ -33,7 +33,7 @@ A score of 1.0 indicates perfect isolation (only the target finger moved), while
 
 - **Robust Hand Tracking**: Real-time 21-point landmark extraction and full 3D hand pose reconstruction.
 - **Handedness Independence**: Universal support for both Left and Right hand orientations with automatic coordinate adjustment.
-- **Guided Exercise Mode**: A structured state machine (Prepare -> Record -> Score) that facilitates standardized data capture for all five digits.
+- **Guided Exercise Mode**: A structured state machine (Calibrate -> Prepare -> Record -> Score) that facilitates standardized data capture for all five digits.
 - **Live Feedback Engine**: High-performance visualization of movement intensity and real-time isolation scores.
 - **Automated Analytics**: Session logging to CSV format and post-session reporting via Matplotlib.
 
@@ -88,7 +88,7 @@ python main.py
 ### Session Controls
 | Key | Action |
 |:---:|:---|
-| `Space` | Start Session / Advance to next finger |
+| `Space` | Start Session (from Idle) |
 | `P` | Pause/Resume exercise |
 | `R` | Reset entire session |
 | `S` | Skip current finger |
@@ -121,7 +121,7 @@ graph TD
     subgraph Processing Layer
         H --> I[Motion Tracker]
         I --> J[Score Engine]
-        K[Exercise State Machine] <--> J
+        K[Exercise State Machine\n(Calibrate -> Prepare -> Record -> Score)] <--> J
     end
 
     subgraph Output Layer
@@ -151,5 +151,4 @@ The system includes a suite of tests for coordinate transforms, motion smoothing
 ```bash
 python -m pytest tests/
 ```
-
 
