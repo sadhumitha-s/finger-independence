@@ -131,19 +131,22 @@ graph TD
     subgraph "Analysis Layer"
         D --> E[Hand Analyzer]
         E --> F[Palm Plane Reconstruction]
-        E --> G[Joint Angle Signals]
+        F --> G[Joint Angle Signals]
         G --> H[Thumb + MCP Flexion]
     end
 
     subgraph "Processing Layer"
         H --> I[Motion Tracker]
         I --> J[Leakage Score Engine]
-        K["Exercise State Machine<br/>(Calibrate -> Prepare -> Record -> Score)"] <--> J
+        K["Exercise State Machine<br/>(Calibrate -> Prepare -> Record -> Score)"] -- Triggers --> J
     end
 
     subgraph "Output Layer"
-        M[Visualizer Engine] <--> K
-        K --> N[Analytics & Reporting]
+        J -- Data --> N[Analytics & Reporting]
+        K -- State --> N
+        K <--> M[Visualizer Engine]
+        D -- Overlays --> M
+        B -- Feed --> M
         M --> O[User UI Feedback]
     end
 
