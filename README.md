@@ -10,24 +10,25 @@ The system transforms raw webcam video into joint-articulation metrics through a
 
 ### 1. 3D Palm Plane Reconstruction
 The analyzer constructs a dynamic 3D coordinate frame localized to the current hand pose.
-- **Reference Points**: It uses the Wrist (0), Index MCP (5), and Pinky MCP (17) to define the Palm Plane.
-- **Normal Vector Calculation**: A palm normal is calculated using a cross product.
+- **Reference Points**: It uses the **Centroid of all finger MCPs** (Index 5, Middle 9, Ring 13, Pinky 17) to define the Hand's stable origin.
+- **Normal Vector Calculation**: A palm normal is calculated by cross-referencing the hand's longitudinal axis (Wrist to Centroid) with its transverse span (Index MCP to Pinky MCP).
 - **Orientation Validation**: Recording is accepted only when the palm faces the camera (`palm_normal.z > 0.15`).
 
 ### 2. Biomechanical Metrics
 For every valid frame, the analyzer computes:
 - **MCP Flexion (Index/Middle/Ring/Pinky)**: Joint articulation from `(PIP-MCP)` and `(MCP-Wrist)` with straight posture near 180 degrees.
 - **Thumb Composite Signal**: `0.6 * opposition + 0.4 * flexion`.
+- **Signal Decoupling**: Thumb opposition is measured against a derived stable axis orthogonal to the palm normal, preventing movement in fingers (like the index) from polluting the thumb's tracking data.
 - **Temporal Smoothing**:
   - Landmark EMA smoothing in `hand_tracker.py`
   - 5-frame moving average on per-finger angle signals in `motion_tracker.py`
-- **Baseline-Relative Motion**: `abs(baseline_angle - smoothed_angle)` with a `3°` physiological noise gate.
+- **Baseline-Relative Motion**: `abs(baseline_angle - smoothed_angle)` with a `1.5°` physiological noise gate.
 - **Optional Sideways Drift Signal**: Still computed by `analyzer.py` for diagnostics, not used in the current scoring formula.
 
 ### 3. The Independence Score
 The score is leakage-based and only uses frames where the target finger moved enough:
 - Frame leakage: `mean(motion[other] / motion[target])`
-- Valid frame gate: `motion[target] >= 3°`
+- Valid frame gate: `motion[target] >= 2°`
 - Trial leakage: mean frame leakage over accepted frames
 - Trial independence: `clamp(1 - trial_mean_leakage, 0, 1)`
 - Finger score: mean of accepted trial-independence values
@@ -125,29 +126,29 @@ graph TD
 
     subgraph "Perception Layer"
         B --> C[MediaPipe Hand Tracker]
-        C --> D[3D Landmark Extraction]
+        C --> D[EMA-Filtered 3D Landmarks]
     end
 
     subgraph "Analysis Layer"
         D --> E[Hand Analyzer]
-        E --> F[Palm Plane Reconstruction]
-        F --> G[Joint Angle Signals]
-        G --> H[Thumb + MCP Flexion]
+        E --> F[Centroid-Based Palm Plane]
+        F --> G[Decoupled Reference Frame]
+        G --> H[Isolated Joint Signals]
     end
 
     subgraph "Processing Layer"
-        H --> I[Motion Tracker]
+        H --> I[Differential Motion Tracker]
         I --> J[Leakage Score Engine]
-        K["Exercise State Machine<br/>(Calibrate -> Prepare -> Record -> Score)"] -- Triggers --> J
+        K["Exercise State Machine<br/>(Calibrate -> Prepare -> Record -> Score)"] -- Logic --> J
     end
 
     subgraph "Output Layer"
-        J -- Data --> N[Analytics & Reporting]
+        J -- Scores --> N[Analytics & Reporting]
         K -- State --> N
         K <--> M[Visualizer Engine]
         D -- Overlays --> M
         B -- Feed --> M
-        M --> O[User UI Feedback]
+        M --> O[Real-time UI Feedback]
     end
 
     style C fill:#f96,stroke:#333,stroke-width:2px
@@ -171,6 +172,7 @@ graph TD
 The project includes unit tests for:
 - state-machine timing and transitions
 - analyzer angle behavior and edge-case fallback
+- **Signal Isolation**: verified tests ensuring index/ring movement doesn't affect thumb tracking
 - motion smoothing and thresholded motion outputs
 - leakage scoring and coupling behavior
 - analytics trial aggregation behavior
