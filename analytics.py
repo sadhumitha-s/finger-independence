@@ -16,109 +16,88 @@ class Analytics:
         self.results: Dict[int, float] = {}
         # Finalized per-finger session scores (for Export/Plot).
         self.final_results: Dict[int, float] = {}
-        # Per-finger active-frame score buffers while recording.
-        self._frame_scores: Dict[int, List[float]] = {}
-        # Cycle-aware buffers: active segment score chunks (bend phase) collected per finger.
-        self._cycle_scores: Dict[int, List[float]] = {}
-        self._current_cycle_samples: Dict[int, List[float]] = {}
-        self._was_active: Dict[int, bool] = {}
+        # Reliability per finger = std-dev of per-trial independence scores.
+        self.trial_std_dev: Dict[int, float] = {}
+        # Per-finger finalized trial-level independence list.
+        self._trial_scores: Dict[int, List[float]] = {}
+        # Active trial accumulators.
+        self._trial_leakage_sum: Dict[int, float] = {}
+        self._trial_frame_count: Dict[int, int] = {}
+        self._is_trial_active: Dict[int, bool] = {}
         self._initialize_finger_maps()
 
     def _initialize_finger_maps(self):
         self.results = {idx: 0.0 for idx in range(len(Config.FINGERS))}
         self.final_results = {idx: 0.0 for idx in range(len(Config.FINGERS))}
-        self._frame_scores = {idx: [] for idx in range(len(Config.FINGERS))}
-        self._cycle_scores = {idx: [] for idx in range(len(Config.FINGERS))}
-        self._current_cycle_samples = {idx: [] for idx in range(len(Config.FINGERS))}
-        self._was_active = {idx: False for idx in range(len(Config.FINGERS))}
+        self.trial_std_dev = {idx: 0.0 for idx in range(len(Config.FINGERS))}
+        self._trial_scores = {idx: [] for idx in range(len(Config.FINGERS))}
+        self._trial_leakage_sum = {idx: 0.0 for idx in range(len(Config.FINGERS))}
+        self._trial_frame_count = {idx: 0 for idx in range(len(Config.FINGERS))}
+        self._is_trial_active = {idx: False for idx in range(len(Config.FINGERS))}
 
     def begin_finger_recording(self, finger_idx: int):
-        if finger_idx not in self._frame_scores:
+        if finger_idx not in self._trial_scores:
             return
-        self._frame_scores[finger_idx] = []
-        self._cycle_scores[finger_idx] = []
-        self._current_cycle_samples[finger_idx] = []
-        self._was_active[finger_idx] = False
+        self._trial_scores[finger_idx] = []
+        self._trial_leakage_sum[finger_idx] = 0.0
+        self._trial_frame_count[finger_idx] = 0
+        self._is_trial_active[finger_idx] = False
         self.results[finger_idx] = 0.0
 
-    def _finalize_open_cycle(self, finger_idx: int):
-        samples = self._current_cycle_samples[finger_idx]
-        if len(samples) < Config.MIN_ACTIVE_FRAMES_PER_CYCLE:
-            self._current_cycle_samples[finger_idx] = []
+    def _finalize_open_trial(self, finger_idx: int):
+        frame_count = self._trial_frame_count[finger_idx]
+        if frame_count < Config.MIN_ACTIVE_FRAMES_PER_CYCLE:
+            self._trial_leakage_sum[finger_idx] = 0.0
+            self._trial_frame_count[finger_idx] = 0
             return
 
-        arr = np.array(samples, dtype=float)
-        # Trim extreme jitter spikes before per-cycle averaging.
-        q10, q90 = np.percentile(arr, [10, 90])
-        trimmed = arr[(arr >= q10) & (arr <= q90)]
-        cycle_score = float(np.mean(trimmed)) if len(trimmed) > 0 else float(np.mean(arr))
-        self._cycle_scores[finger_idx].append(max(0.0, min(1.0, cycle_score)))
-        self._current_cycle_samples[finger_idx] = []
+        mean_leakage = self._trial_leakage_sum[finger_idx] / max(frame_count, 1)
+        trial_score = max(0.0, min(1.0, 1.0 - float(mean_leakage)))
+        self._trial_scores[finger_idx].append(trial_score)
+        self._trial_leakage_sum[finger_idx] = 0.0
+        self._trial_frame_count[finger_idx] = 0
 
-    def record_score(
+    def record_leakage(
         self,
         finger_idx: int,
-        score: float,
-        is_target_active: Optional[bool] = None,
-        target_lift: Optional[float] = None,
-        target_tip: Optional[float] = None,
+        leakage: Optional[float],
     ):
         if finger_idx not in self.results:
             return
 
-        if is_target_active is None:
-            if target_lift is None or target_tip is None:
-                is_target_active = False
-            elif self._was_active[finger_idx]:
-                release_lift = Config.TARGET_RELEASE_LIFT_DEG
-                release_tip = Config.TIP_MOVEMENT_LIMIT * Config.TARGET_RELEASE_TIP_SCALE
-                is_target_active = (target_lift >= release_lift) or (target_tip >= release_tip)
-            else:
-                activity_lift = Config.TARGET_ACTIVITY_LIFT_DEG
-                activity_tip = Config.TIP_MOVEMENT_LIMIT * Config.TARGET_ACTIVITY_TIP_SCALE
-                is_target_active = (target_lift >= activity_lift) or (target_tip >= activity_tip)
-
-        bounded_score = max(0.0, min(1.0, float(score)))
-        alpha = Config.SMOOTHING_ALPHA
-        smoothed = (alpha * bounded_score) + ((1.0 - alpha) * self.results[finger_idx])
-        self.results[finger_idx] = smoothed
-
-        if is_target_active:
-            self._frame_scores[finger_idx].append(bounded_score)
-            self._current_cycle_samples[finger_idx].append(bounded_score)
-            self._was_active[finger_idx] = True
+        if leakage is not None:
+            bounded_leakage = max(0.0, float(leakage))
+            self._trial_leakage_sum[finger_idx] += bounded_leakage
+            self._trial_frame_count[finger_idx] += 1
+            self._is_trial_active[finger_idx] = True
+            running_mean_leakage = self._trial_leakage_sum[finger_idx] / max(self._trial_frame_count[finger_idx], 1)
+            preview_score = max(0.0, min(1.0, 1.0 - running_mean_leakage))
+            self.results[finger_idx] = preview_score
             return
 
-        if self._was_active[finger_idx]:
-            self._finalize_open_cycle(finger_idx)
-        self._was_active[finger_idx] = False
+        if self._is_trial_active[finger_idx]:
+            self._finalize_open_trial(finger_idx)
+        self._is_trial_active[finger_idx] = False
 
     def finalize_finger(self, finger_idx: int):
-        if finger_idx not in self._frame_scores:
+        if finger_idx not in self._trial_scores:
             return
 
-        # Close any active cycle if recording ends mid-bend.
-        if self._was_active[finger_idx]:
-            self._finalize_open_cycle(finger_idx)
-            self._was_active[finger_idx] = False
+        # Close any active trial if recording ends mid-movement.
+        if self._is_trial_active[finger_idx]:
+            self._finalize_open_trial(finger_idx)
+            self._is_trial_active[finger_idx] = False
 
-        cycle_scores = self._cycle_scores[finger_idx]
-        frame_scores = self._frame_scores[finger_idx]
-
-        if len(cycle_scores) >= Config.MIN_CYCLES_FOR_VALID_SCORE:
-            finalized = float(np.mean(cycle_scores))
-        elif len(frame_scores) >= Config.MIN_ACTIVE_FRAMES_PER_CYCLE:
-            # Fallback for users who hold bent finger instead of repeating cycles.
-            finalized = float(np.mean(frame_scores))
-        else:
-            finalized = 0.0
-
+        trial_scores = self._trial_scores[finger_idx]
+        finalized = float(np.mean(trial_scores)) if len(trial_scores) >= Config.MIN_CYCLES_FOR_VALID_SCORE else 0.0
+        reliability = float(np.std(trial_scores)) if len(trial_scores) > 1 else 0.0
         finalized = max(0.0, min(1.0, finalized))
         self.final_results[finger_idx] = finalized
         self.results[finger_idx] = finalized
-        self._frame_scores[finger_idx] = []
-        self._cycle_scores[finger_idx] = []
-        self._current_cycle_samples[finger_idx] = []
+        self.trial_std_dev[finger_idx] = reliability
+        self._trial_scores[finger_idx] = []
+        self._trial_leakage_sum[finger_idx] = 0.0
+        self._trial_frame_count[finger_idx] = 0
 
     def export_csv(self):
         if not self.final_results:
@@ -128,11 +107,12 @@ class Analytics:
         with open(self.filename, mode='a', newline='') as file:
             writer = csv.writer(file)
             if not file_exists:
-                writer.writerow(["Timestamp", "Finger ID", "Finger Name", "Independence Score"])
+                writer.writerow(["Timestamp", "Finger ID", "Finger Name", "Independence Score", "Trial Std Dev"])
 
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             for finger_idx, score in sorted(self.final_results.items()):
-                writer.writerow([timestamp, finger_idx, Config.FINGERS[finger_idx], f"{score:.4f}"])
+                std_dev = self.trial_std_dev.get(finger_idx, 0.0)
+                writer.writerow([timestamp, finger_idx, Config.FINGERS[finger_idx], f"{score:.4f}", f"{std_dev:.4f}"])
         print(f"Results exported to {self.filename}")
 
     def plot_results(self):

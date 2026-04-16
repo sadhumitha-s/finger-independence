@@ -6,26 +6,42 @@ A computer vision system that quantifies and analyzes individual finger motor co
 
 ## How It Works 
 
-The system transforms raw 2D video input into a robust 3D kinesiological analysis through several key stages:
+The system transforms raw webcam video into joint-articulation metrics through a fixed, modular pipeline:
 
 ### 1. 3D Palm Plane Reconstruction
-Unlike basic gesture recognizers, this system constructs a dynamic 3D Coordinate System localized to the user's hand. 
+The analyzer constructs a dynamic 3D coordinate frame localized to the current hand pose.
 - **Reference Points**: It uses the Wrist (0), Index MCP (5), and Pinky MCP (17) to define the Palm Plane.
-- **Normal Vector Calculation**: A normal vector (pointing out from the palm) is calculated using the cross product of the palm vectors.
-- **Normalization**: This allows the system to remain accurate even as the user tilts or rotates their hand in front of the camera. The system includes orientation validation to ensure data is only recorded when the palm is correctly oriented toward the sensor.
+- **Normal Vector Calculation**: A palm normal is calculated using a cross product.
+- **Orientation Validation**: Recording is accepted only when the palm faces the camera (`palm_normal.z > 0.15`).
 
 ### 2. Biomechanical Metrics
-For every frame, the analyzer computes:
-- **Finger Lift**: The angle (in degrees) of the finger direction relative to the palm plane.
-- **Fingertip Height**: The perpendicular distance from the MCP joint to the fingertip along the palm normal.
-- **Sideways Drift**: Detection of unintended lateral movement during vertical exercises.
-- **Specialized Thumb Logic**: Includes specific calibration for the thumb's unique range of motion involving the CMC and MCP joints.
+For every valid frame, the analyzer computes:
+- **MCP Flexion (Index/Middle/Ring/Pinky)**: Joint articulation from `(PIP-MCP)` and `(MCP-Wrist)` with straight posture near 180 degrees.
+- **Thumb Composite Signal**: `0.6 * opposition + 0.4 * flexion`.
+- **Temporal Smoothing**:
+  - Landmark EMA smoothing in `hand_tracker.py`
+  - 5-frame moving average on per-finger angle signals in `motion_tracker.py`
+- **Baseline-Relative Motion**: `abs(baseline_angle - smoothed_angle)` with a `3°` physiological noise gate.
+- **Optional Sideways Drift Signal**: Still computed by `analyzer.py` for diagnostics, not used in the current scoring formula.
 
 ### 3. The Independence Score
-The core metric is the Independence Ratio, calculated during a target finger's exercise window:
-$$Independence Score = \frac{TargetFingerMotion}{TargetFingerMotion + \sum OtherFingerMotion}$$  
+The score is leakage-based and only uses frames where the target finger moved enough:
+- Frame leakage: `mean(motion[other] / motion[target])`
+- Valid frame gate: `motion[target] >= 3°`
+- Trial leakage: mean frame leakage over accepted frames
+- Trial independence: `clamp(1 - trial_mean_leakage, 0, 1)`
+- Finger score: mean of accepted trial-independence values
+- Reliability: standard deviation of trial-independence values
 
-A score of 1.0 indicates perfect isolation (only the target finger moved), while lower scores quantify the degree to which other fingers "followed" the movement.
+### 4. Exercise Flow
+The runtime state machine is:
+`Idle -> Calibrate -> Prepare -> Recording -> Scoring -> Summary`
+
+- **Calibrate**: collects a baseline over `45` valid frames.
+- **Prepare**: countdown before a finger trial.
+- **Recording**: captures leakage frames for the active finger.
+- **Scoring**: finalizes the active finger’s trial aggregate.
+- **Summary**: exports CSV and shows the bar chart report.
 
 ---
 
@@ -34,8 +50,9 @@ A score of 1.0 indicates perfect isolation (only the target finger moved), while
 - **Robust Hand Tracking**: Real-time 21-point landmark extraction and full 3D hand pose reconstruction.
 - **Handedness Independence**: Universal support for both Left and Right hand orientations with automatic coordinate adjustment.
 - **Guided Exercise Mode**: A structured state machine (Calibrate -> Prepare -> Record -> Score) that facilitates standardized data capture for all five digits.
-- **Live Feedback Engine**: High-performance visualization of movement intensity and real-time isolation scores.
-- **Automated Analytics**: Session logging to CSV format and post-session reporting via Matplotlib.
+- **Leakage-Based Scoring**: Independence scoring based on normalized non-target coupling.
+- **Live Feedback Engine**: Real-time per-finger trial score preview and session bars.
+- **Automated Analytics**: CSV export (with trial reliability) and Matplotlib session plotting.
 
 ---
 
@@ -48,7 +65,7 @@ A score of 1.0 indicates perfect isolation (only the target finger moved), while
 | **Processing** | NumPy | High-performance vector mathematics and geometry |
 | **Interface** | OpenCV | Camera capture, frame processing, and UI rendering |
 | **Analytics** | Matplotlib | Generation of session performance graphs |
-| **Data** | CSV / JSON | Session storage and metrics exporting |
+| **Data** | CSV | Session metric export |
 | **Testing** | PyTest | Unit testing for biomechanical calculations |
 
 ---
@@ -56,7 +73,7 @@ A score of 1.0 indicates perfect isolation (only the target finger moved), while
 ## Installation
 
 ### Requirements
-- **Python 3.8+**
+- **Python 3.10+**
 - Webcam
 
 > [!TIP]
@@ -82,7 +99,7 @@ pip install -r requirements.txt
 
 Launch the main application:
 ```bash
-python main.py
+python3 main.py
 ```
 
 ### Session Controls
@@ -114,13 +131,13 @@ graph TD
     subgraph "Analysis Layer"
         D --> E[Hand Analyzer]
         E --> F[Palm Plane Reconstruction]
-        E --> G[Biomechanical Metrics]
-        G --> H[Lift, Height & Drift]
+        E --> G[Joint Angle Signals]
+        G --> H[Thumb + MCP Flexion]
     end
 
     subgraph "Processing Layer"
         H --> I[Motion Tracker]
-        I --> J[Score Engine]
+        I --> J[Leakage Score Engine]
         K["Exercise State Machine<br/>(Calibrate -> Prepare -> Record -> Score)"] <--> J
     end
 
@@ -137,18 +154,24 @@ graph TD
 
 ### Component Breakdown
 - **`hand_tracker.py`**: MediaPipe abstraction and landmark filtering.
-- **`analyzer.py`**: Core biomechanical math (3D planes, vectors, and lift).
-- **`score_engine.py`**: Statistical processing of motion data into independence scores.
+- **`analyzer.py`**: Core biomechanical math (palm frame, MCP flexion, thumb opposition/flexion).
+- **`motion_tracker.py`**: Angle smoothing and baseline-relative thresholded motion.
+- **`score_engine.py`**: Frame-level leakage and independence conversion.
 - **`exercise_mode.py`**: Finite State Machine managing timing and user flow.
 - **`visualizer.py`**: Rendering of the interface and skeletal overlays.
-- **`analytics.py`**: Data serialization and reporting.
+- **`analytics.py`**: Trial aggregation, reliability (std-dev), CSV export, and plotting.
 
 ---
 
 ## Testing
 
-The system includes a suite of tests for coordinate transforms, motion smoothing, and score edge cases.
-```bash
-python -m pytest tests/
-```
+The project includes unit tests for:
+- state-machine timing and transitions
+- analyzer angle behavior and edge-case fallback
+- motion smoothing and thresholded motion outputs
+- leakage scoring and coupling behavior
+- analytics trial aggregation behavior
 
+```bash
+python3 -m pytest tests/
+```

@@ -15,11 +15,12 @@ class Config:
     MIN_DETECTION_CONFIDENCE = 0.7
     MIN_TRACKING_CONFIDENCE = 0.7
 
-    # Biomechanical Algorithm Constants
+    # Biomechanical Algorithm Constants (angle-domain)
     SMOOTHING_ALPHA = 0.25
-    TARGET_LIFT_TRIGGER = 8.0 # degrees
-    OTHER_LIFT_LIMIT = 4.0      # degrees
-    TIP_MOVEMENT_LIMIT = 0.02  # normalized distance
+    ANGLE_SMOOTHING_WINDOW = 5
+    MOTION_NOISE_THRESHOLD_DEG = 3.0
+    TARGET_MOTION_MIN_DEG = 3.0
+    TARGET_MOTION_HIGHLIGHT_DEG = 6.0
     CALIBRATION_FRAMES = 45
     
     # Logic Thresholds
@@ -31,15 +32,14 @@ class Config:
     THUMB_MCP_WEIGHT = 0.8
     THUMB_CMC_WEIGHT = 0.2
 
-    # Sensitivity Tuning
-    UNWANTED_MOTION_WEIGHT = 1.1  # Softer noise penalty to avoid crushing non-thumb scores
-    THUMB_MOTION_SCALING = 1.0    # No extra thumb amplification
-    THUMB_SIDEWAYS_TRIGGER = 0.35 # Larger thumb sideways trigger to reduce false spikes
+    # Thumb signal blend
+    THUMB_OPPOSITION_WEIGHT = 0.6
+    THUMB_FLEXION_WEIGHT = 0.4
 
     # Timeings
     PREPARE_DURATION_SEC = 3.0
     RECORDING_DURATION_SEC = 5.0
-    SCORE_NOISE_REDUCTION_FACTOR = 10.0 # Higher = less sensitive to jitters
+    SCORE_NOISE_REDUCTION_FACTOR = 10.0 # Legacy
 
     # UI Colors (BGR)
     COLOR_BG_RIGHT_PANEL = (30, 30, 30)
@@ -61,10 +61,6 @@ class Config:
     # Landmark indices for fingertips
     FINGER_TIP_INDICES = [4, 8, 12, 16, 20]
 
-    # Target activation / cycle tracking
-    TARGET_ACTIVITY_LIFT_DEG = 2.0
-    TARGET_RELEASE_LIFT_DEG = 1.0
-    TARGET_ACTIVITY_TIP_SCALE = 1.0
-    TARGET_RELEASE_TIP_SCALE = 0.6
+    # Trial tracking
     MIN_ACTIVE_FRAMES_PER_CYCLE = 4
     MIN_CYCLES_FOR_VALID_SCORE = 1

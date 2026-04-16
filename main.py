@@ -1,5 +1,4 @@
 import cv2
-import numpy as np
 
 from config import Config
 from hand_tracker import HandTracker
@@ -47,25 +46,28 @@ def main():
         # Orientation and Metrics
         palm_normal = None
         if landmarks and handedness:
-            palm_normal, wrist_pt = analyzer.compute_palm_plane(landmarks, handedness)
+            palm_normal, _ = analyzer.compute_palm_plane(landmarks, handedness)
             if not analyzer.is_orientation_valid(palm_normal):
                 cv2.putText(frame, "INVALID ORIENTATION - FACE PALM TO CAMERA", (50, 50),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, Config.COLOR_WARNING, 2)
             
-            # Simple visual feedback for bending (legacy)
-            # We can still use FingerAngleCalculator for simple dot drawing if needed, 
-            # but let's stick to the new analyzer's lift measurements.
-            lifts, heights, dirs = analyzer.compute_metrics(landmarks, palm_normal)
+            # Visual feedback for active articulation (baseline-relative joint angle change).
+            angles, _ = analyzer.compute_metrics(landmarks, palm_normal)
             h, w = frame.shape[:2]
-            for i, lift in enumerate(lifts):
-                # With camera-facing normal, LIFTING (away from camera) is POSITIVE relative lift
-                relative_lift = lift - analyzer.baseline_lifts[i]
-                # visual feedback based on lifting constraint
-                if relative_lift > Config.TARGET_LIFT_TRIGGER:
+            if analyzer.is_calibrated:
+                for i, angle in enumerate(angles):
+                    relative_motion = abs(analyzer.baseline_angles[i] - angle)
+                    if relative_motion > Config.TARGET_MOTION_HIGHLIGHT_DEG:
+                        mcp_idx = HandAnalyzer.FINGER_MCP[i]
+                        px = int(landmarks[mcp_idx][0] * w)
+                        py = int(landmarks[mcp_idx][1] * h)
+                        cv2.circle(frame, (px, py), 15, Config.COLOR_ACCENT, 2)
+            else:
+                for i, _ in enumerate(angles):
                     mcp_idx = HandAnalyzer.FINGER_MCP[i]
                     px = int(landmarks[mcp_idx][0] * w)
                     py = int(landmarks[mcp_idx][1] * h)
-                    cv2.circle(frame, (px, py), 15, Config.COLOR_ACCENT, 2)
+                    cv2.circle(frame, (px, py), 8, Config.COLOR_ACCENT, 1)
                     
         exercise.update()
 
@@ -88,26 +90,11 @@ def main():
         # Motion tracking
         if landmarks and exercise.state == State.RECORDING and not exercise.is_paused:
             if palm_normal is not None and analyzer.is_orientation_valid(palm_normal):
-                lifts, heights, dirs = analyzer.compute_metrics(landmarks, palm_normal)
-                sideways_motions = analyzer.get_sideways_motion(dirs, palm_normal)
-                relative_lifts, delta_heights, tip_motions = motion.update(
-                    lifts, analyzer.baseline_lifts, 
-                    heights, analyzer.baseline_heights
-                )
-                
-                score = score_engine.calculate_independence_score(
-                    exercise.current_finger_idx, relative_lifts, tip_motions, delta_heights, sideways_motions
-                )
-                
+                angles, _ = analyzer.compute_metrics(landmarks, palm_normal)
+                _, _, motion_values = motion.update(angles, analyzer.baseline_angles)
                 target_idx = exercise.current_finger_idx
-                target_lift = abs(relative_lifts[target_idx])
-                target_tip = abs(tip_motions[target_idx])
-                analytics.record_score(
-                    target_idx,
-                    score,
-                    target_lift=target_lift,
-                    target_tip=target_tip,
-                )
+                leakage = score_engine.calculate_frame_leakage(target_idx, motion_values)
+                analytics.record_leakage(target_idx, leakage)
                 
         # State transitions based on logic
         if exercise.state == State.SCORING:
