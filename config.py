@@ -18,9 +18,9 @@ class Config:
     # Biomechanical Algorithm Constants (angle-domain)
     SMOOTHING_ALPHA = 0.25
     ANGLE_SMOOTHING_WINDOW = 5
-    MOTION_NOISE_THRESHOLD_DEG = 3.0
-    TARGET_MOTION_MIN_DEG = 3.0
-    TARGET_MOTION_HIGHLIGHT_DEG = 6.0
+    MOTION_NOISE_THRESHOLD_DEG = 1.5
+    TARGET_MOTION_MIN_DEG = 2.0
+    TARGET_MOTION_HIGHLIGHT_DEG = 4.0
     CALIBRATION_FRAMES = 45
     
     # Logic Thresholds

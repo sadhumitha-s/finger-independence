@@ -55,13 +55,17 @@ def main():
             angles, _ = analyzer.compute_metrics(landmarks, palm_normal)
             h, w = frame.shape[:2]
             if analyzer.is_calibrated:
+                target_idx = exercise.current_finger_idx
                 for i, angle in enumerate(angles):
                     relative_motion = abs(analyzer.baseline_angles[i] - angle)
                     if relative_motion > Config.TARGET_MOTION_HIGHLIGHT_DEG:
                         mcp_idx = HandAnalyzer.FINGER_MCP[i]
                         px = int(landmarks[mcp_idx][0] * w)
                         py = int(landmarks[mcp_idx][1] * h)
-                        cv2.circle(frame, (px, py), 15, Config.COLOR_ACCENT, 2)
+                        
+                        # GREEN for target finger, RED for leakage (other fingers)
+                        color = Config.COLOR_ACCENT if i == target_idx else Config.COLOR_WARNING
+                        cv2.circle(frame, (px, py), 15, color, 2)
             else:
                 for i, _ in enumerate(angles):
                     mcp_idx = HandAnalyzer.FINGER_MCP[i]
