@@ -41,40 +41,32 @@ class HandAnalyzer:
 
     def compute_palm_plane(self, landmarks: List[Tuple[float, float, float]], handedness: str = "Right") -> Tuple[np.ndarray, np.ndarray]:
         """
-        Uses wrist (0), index MCP (5), and pinky MCP (17) to define the palm plane.
+        Uses wrist and a centroid of MCPs to define a stable palm plane.
         Returns (palm_normal, wrist_pt).
         """
         pts = np.array(landmarks)
         wrist = pts[0]
-        index_mcp = pts[5]
-        pinky_mcp = pts[17]
-
-        # Vectors originating from wrist
-        v_index = index_mcp - wrist
-        v_pinky = pinky_mcp - wrist
         
-        palm_normal = np.cross(v_index, v_pinky)
-        norm = np.linalg.norm(palm_normal)
-        if norm == 0:
+        # Use centroid of Index, Middle, Ring, and Pinky MCPs for base stability
+        mcp_indices = [5, 9, 13, 17]
+        mcp_pts = pts[mcp_indices]
+        mcp_centroid = np.mean(mcp_pts, axis=0)
+
+        # Longitudinal axis (Wrist to MCP Centroid)
+        v_longitudinal = mcp_centroid - wrist
+        # Transverse axis (Pinky MCP - Index MCP) - spans the palm width
+        v_span = pts[17] - pts[5]
+        
+        # The normal is perpendicular to the hand's length and width
+        palm_normal = np.cross(v_longitudinal, v_span)
+        palm_normal, ok = self._safe_normalize(palm_normal)
+        if not ok:
             return np.array([0, 0, 1]), wrist
         
-        palm_normal = palm_normal / norm
-        
-        # For Palm facing camera (front of hand):
-        # We want palm_normal to point AWAY from camera (+Z) 
-        # so that fingers bending TOWARDS camera have a negative dot product.
-        
-        # Physical Right Hand (not mirrored): Thumb Left, Pinky Right. Cross(Index-Wrist, Pinky-Wrist) is +Z.
-        # Physical Left Hand (not mirrored): Thumb Right, Pinky Left. Cross(Index-Wrist, Pinky-Wrist) is -Z.
-        
         # NOTE: Mediapipe labels are flipped in mirrored view.
-        # If user shows physical Right hand, it looks like a Left hand in image.
-        # Our math relies on the image appearance, so we trust the labeled handedness.
-        
-        if handedness == "Right":
-            pass # Keep +Z
-        else:
-            palm_normal = -palm_normal # Flip -Z to +Z
+        # We want palm_normal to point INTO the palm (away from camera).
+        if handedness != "Right":
+            palm_normal = -palm_normal
             
         return palm_normal, wrist
 
@@ -99,7 +91,14 @@ class HandAnalyzer:
         wrist = pts[self.WRIST_IDX]
 
         # Thumb signal: opposition + flexion
-        palm_axis = pts[5] - pts[17]
+        # Use a stable reference axis derived from the palm normal and longitudinal axis.
+        # This prevents individual finger movements from polluting the thumb signal.
+        mcp_centroid = np.mean(pts[[5, 9, 13, 17]], axis=0)
+        v_longitudinal = mcp_centroid - wrist
+        
+        # Perpendicular to normal and length = stable horizontal axis
+        palm_axis = np.cross(palm_normal, v_longitudinal)
+        
         thumb_dir = pts[4] - pts[2]
         thumb_opposition = self._angle_deg(thumb_dir, palm_axis, default=float(self._last_angles[0]))
         thumb_flexion = self._supplementary_angle_deg(
