@@ -180,3 +180,11 @@ The project includes unit tests for:
 ```bash
 python3 -m pytest tests/
 ```
+
+---
+
+## License
+
+All Rights Reserved.
+
+This project is proprietary. No permission is granted to use, copy, modify, or distribute this code without prior written consent.
