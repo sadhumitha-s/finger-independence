@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List, Tuple
-from config import Config
+from .config import Config
 
 class FingerAngleCalculator:
     # Landmarks for MCP, PIP, DIP joints of each finger

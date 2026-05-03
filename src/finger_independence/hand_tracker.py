@@ -2,7 +2,7 @@ import cv2
 import mediapipe as mp
 from typing import Optional, List, Tuple
 import logging
-from config import Config
+from .config import Config
 
 logger = logging.getLogger(__name__)
 

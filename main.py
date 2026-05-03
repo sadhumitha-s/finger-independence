@@ -1,13 +1,16 @@
 import cv2
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
-from config import Config
-from hand_tracker import HandTracker
-from motion_tracker import MotionTracker
-from score_engine import ScoreEngine
-from exercise_mode import ExerciseMode, State
-from visualizer import Visualizer
-from analytics import Analytics
-from analyzer import HandAnalyzer
+from finger_independence.config import Config
+from finger_independence.hand_tracker import HandTracker
+from finger_independence.motion_tracker import MotionTracker
+from finger_independence.score_engine import ScoreEngine
+from finger_independence.exercise_mode import ExerciseMode, State
+from finger_independence.visualizer import Visualizer
+from finger_independence.analytics import Analytics
+from finger_independence.analyzer import HandAnalyzer
 
 def main():
     cap = cv2.VideoCapture(Config.CAMERA_INDEX)
@@ -97,8 +100,7 @@ def main():
                 angles, _ = analyzer.compute_metrics(landmarks, palm_normal)
                 _, _, motion_values = motion.update(angles, analyzer.baseline_angles)
                 target_idx = exercise.current_finger_idx
-                leakage = score_engine.calculate_frame_leakage(target_idx, motion_values)
-                analytics.record_leakage(target_idx, leakage)
+                analytics.record_leakage(target_idx, motion_values)
                 
         # State transitions based on logic
         if exercise.state == State.SCORING:

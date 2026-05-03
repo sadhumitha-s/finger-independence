@@ -1,7 +1,7 @@
 import numpy as np
 from collections import deque
 from typing import List, Tuple
-from config import Config
+from .config import Config
 
 class MotionTracker:
     def __init__(self):

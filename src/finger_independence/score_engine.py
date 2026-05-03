@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Optional
-from config import Config
+from .config import Config
 
 class ScoreEngine:
     def __init__(self):

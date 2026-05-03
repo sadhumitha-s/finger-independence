@@ -1,9 +1,9 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from exercise_mode import ExerciseMode, State
-from config import Config
+from finger_independence.exercise_mode import ExerciseMode, State
+from finger_independence.config import Config
 
 def test_initial_state():
     mode = ExerciseMode()

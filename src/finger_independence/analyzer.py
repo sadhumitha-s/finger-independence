@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List, Tuple
-from config import Config
+from .config import Config
 
 class HandAnalyzer:
     FINGER_MCP = [1, 5, 9, 13, 17]

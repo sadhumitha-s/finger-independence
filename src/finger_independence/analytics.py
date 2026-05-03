@@ -3,8 +3,10 @@ import os
 from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
+import pandas as pd
 from typing import Dict, List, Optional
-from config import Config
+from .config import Config
 
 class Analytics:
     def __init__(self):
@@ -24,6 +26,13 @@ class Analytics:
         self._trial_leakage_sum: Dict[int, float] = {}
         self._trial_frame_count: Dict[int, int] = {}
         self._is_trial_active: Dict[int, bool] = {}
+        
+        # Enslavement Matrix (Synergy Mapping)
+        # M[i, j] = motion of finger j when finger i is the target
+        self.enslavement_matrix = np.zeros((5, 5))
+        self._matrix_accumulator = np.zeros((5, 5))
+        self._matrix_counts = np.zeros(5)
+        
         self._initialize_finger_maps()
 
     def _initialize_finger_maps(self):
@@ -34,6 +43,9 @@ class Analytics:
         self._trial_leakage_sum = {idx: 0.0 for idx in range(len(Config.FINGERS))}
         self._trial_frame_count = {idx: 0 for idx in range(len(Config.FINGERS))}
         self._is_trial_active = {idx: False for idx in range(len(Config.FINGERS))}
+        self.enslavement_matrix = np.zeros((5, 5))
+        self._matrix_accumulator = np.zeros((5, 5))
+        self._matrix_counts = np.zeros(5)
 
     def begin_finger_recording(self, finger_idx: int):
         if finger_idx not in self._trial_scores:
@@ -59,25 +71,47 @@ class Analytics:
 
     def record_leakage(
         self,
-        finger_idx: int,
-        leakage: Optional[float],
+        target_idx: int,
+        motion_values: np.ndarray,
     ):
-        if finger_idx not in self.results:
+        if target_idx not in self.results:
             return
 
-        if leakage is not None:
-            bounded_leakage = max(0.0, float(leakage))
-            self._trial_leakage_sum[finger_idx] += bounded_leakage
-            self._trial_frame_count[finger_idx] += 1
-            self._is_trial_active[finger_idx] = True
-            running_mean_leakage = self._trial_leakage_sum[finger_idx] / max(self._trial_frame_count[finger_idx], 1)
-            preview_score = max(0.0, min(1.0, 1.0 - running_mean_leakage))
-            self.results[finger_idx] = preview_score
+        # Validate target motion
+        target_motion = float(motion_values[target_idx])
+        if target_motion < Config.TARGET_MOTION_MIN_DEG:
+            if self._is_trial_active[target_idx]:
+                self._finalize_open_trial(target_idx)
+            self._is_trial_active[target_idx] = False
             return
 
-        if self._is_trial_active[finger_idx]:
-            self._finalize_open_trial(finger_idx)
-        self._is_trial_active[finger_idx] = False
+        # Calculate frame-level leakage (mean of other/target ratios)
+        ratios = []
+        for j in range(5):
+            if j == target_idx:
+                self._matrix_accumulator[target_idx, j] += 1.0 # Self-enslavement is 1.0
+                continue
+            
+            ratio = float(motion_values[j]) / max(target_motion, 1e-6)
+            # Clip ratio to 1.0 to avoid outliers from noise
+            ratio = min(1.0, max(0.0, ratio))
+            ratios.append(ratio)
+            
+            # Accumulate for the matrix
+            self._matrix_accumulator[target_idx, j] += ratio
+            
+        self._matrix_counts[target_idx] += 1
+        
+        leakage = float(np.mean(ratios)) if ratios else 0.0
+        
+        # Original leakage tracking logic
+        self._trial_leakage_sum[target_idx] += leakage
+        self._trial_frame_count[target_idx] += 1
+        self._is_trial_active[target_idx] = True
+        
+        running_mean_leakage = self._trial_leakage_sum[target_idx] / max(self._trial_frame_count[target_idx], 1)
+        preview_score = max(0.0, min(1.0, 1.0 - running_mean_leakage))
+        self.results[target_idx] = preview_score
 
     def finalize_finger(self, finger_idx: int):
         if finger_idx not in self._trial_scores:
@@ -95,6 +129,13 @@ class Analytics:
         self.final_results[finger_idx] = finalized
         self.results[finger_idx] = finalized
         self.trial_std_dev[finger_idx] = reliability
+        
+        # Finalize the enslavement matrix row for this finger
+        if self._matrix_counts[finger_idx] > 0:
+            self.enslavement_matrix[finger_idx] = (
+                self._matrix_accumulator[finger_idx] / self._matrix_counts[finger_idx]
+            )
+        
         self._trial_scores[finger_idx] = []
         self._trial_leakage_sum[finger_idx] = 0.0
         self._trial_frame_count[finger_idx] = 0
@@ -119,17 +160,50 @@ class Analytics:
         if not self.final_results:
             return
 
+        # Create a figure with two subplots: Bar chart and Heatmap
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
+
+        # 1. Bar Chart (General Metric)
         indices = list(self.final_results.keys())
         scores = [self.final_results[i] for i in indices]
         names = [Config.FINGERS[i] for i in indices]
 
-        plt.figure(figsize=(8, 6))
-        plt.bar(names, scores, color='skyblue')
-        plt.title('Finger Independence Session Scores')
-        plt.xlabel('Finger')
-        plt.ylabel('Score (0.0 to 1.0)')
-        plt.ylim(0, 1.0)
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        ax1.bar(names, scores, color='skyblue')
+        ax1.set_title('Global Finger Independence Scores', fontsize=14, fontweight='bold')
+        ax1.set_xlabel('Finger', fontsize=12)
+        ax1.set_ylabel('Independence (0.0 - 1.0)', fontsize=12)
+        ax1.set_ylim(0, 1.05)
+        ax1.grid(axis='y', linestyle='--', alpha=0.7)
+        
+        # Add values on top of bars
+        for i, v in enumerate(scores):
+            ax1.text(i, v + 0.02, f"{v:.2f}", ha='center', fontweight='bold')
+
+        # 2. Heatmap (Enslavement Matrix)
+        df_cm = pd.DataFrame(
+            self.enslavement_matrix, 
+            index=Config.FINGERS,
+            columns=Config.FINGERS
+        )
+        
+        sns.heatmap(
+            df_cm, 
+            annot=True, 
+            fmt=".2f", 
+            cmap="YlOrRd", 
+            ax=ax2,
+            cbar_kws={'label': 'Enslavement Ratio (Slave/Target)'}
+        )
+        ax2.set_title('Enslavement Matrix (Synergy Mapping)', fontsize=14, fontweight='bold')
+        ax2.set_xlabel('Response Finger', fontsize=12)
+        ax2.set_ylabel('Target Finger', fontsize=12)
+
+        plt.tight_layout()
+        
+        # Save plot for reference
+        plot_path = os.path.join(self.output_dir, f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+        plt.savefig(plot_path)
+        print(f"Analytics report saved to {plot_path}")
         plt.show()
 
     def reset(self):

@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from config import Config
+from .config import Config
 from typing import Dict
 
 class Visualizer:

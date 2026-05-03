@@ -1,10 +1,10 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 import numpy as np
-from score_engine import ScoreEngine
-from config import Config
+from finger_independence.score_engine import ScoreEngine
+from finger_independence.config import Config
 
 def _z():
     return np.zeros(5, dtype=float)

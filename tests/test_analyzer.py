@@ -1,9 +1,9 @@
 import sys
 import os
 import numpy as np
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from analyzer import HandAnalyzer
+from finger_independence.analyzer import HandAnalyzer
 
 def _base_landmarks():
     """Generates a geometrically valid set of hand landmarks (Open Palm)."""

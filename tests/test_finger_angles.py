@@ -1,10 +1,10 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from finger_angles import FingerAngleCalculator
+from finger_independence.finger_angles import FingerAngleCalculator
 import numpy as np
-from config import Config
+from finger_independence.config import Config
 
 def test_calculate_angle_straight():
     # A, B, C collinear

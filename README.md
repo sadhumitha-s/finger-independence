@@ -25,14 +25,20 @@ For every valid frame, the analyzer computes:
 - **Baseline-Relative Motion**: `abs(baseline_angle - smoothed_angle)` with a `1.5°` physiological noise gate.
 - **Optional Sideways Drift Signal**: Still computed by `analyzer.py` for diagnostics, not used in the current scoring formula.
 
-### 3. The Independence Score
-The score is leakage-based and only uses frames where the target finger moved enough:
-- Frame leakage: `mean(motion[other] / motion[target])`
-- Valid frame gate: `motion[target] >= 2°`
-- Trial leakage: mean frame leakage over accepted frames
-- Trial independence: `clamp(1 - trial_mean_leakage, 0, 1)`
-- Finger score: mean of accepted trial-independence values
-- Reliability: standard deviation of trial-independence values
+### 3. The Independence Score & Enslavement Matrix
+The system quantifies motor control using two primary metrics:
+
+#### A. Independence Score (The "Big Number")
+A frame-by-frame leakage analysis filtered by target activity:
+- **Frame Leakage**: $L = \text{mean}(motion_{other} / motion_{target})$
+- **Valid Frame Gate**: Data is only captured when $motion_{target} \geq 2^\circ$
+- **Trial Independence**: $I = \text{clamp}(1 - L_{trial}, 0, 1)$
+- **Final Score**: The primary metric representing overall isolation quality.
+
+#### B. Enslavement Matrix (Synergy Mapping)
+A 5x5 heatmap where $M_{ij}$ represents the unintended movement of finger $j$ when finger $i$ is the target.
+- **Synergy Mapping**: High-fidelity heatmaps identify specific neuromuscular coupling patterns.
+- **Analytical Depth**: Quantifies how much each individual finger "slave" follows a target "master" digit.
 
 ### 4. Exercise Flow
 The runtime state machine is:
@@ -40,20 +46,20 @@ The runtime state machine is:
 
 - **Calibrate**: collects a baseline over `45` valid frames.
 - **Prepare**: countdown before a finger trial.
-- **Recording**: captures leakage frames for the active finger.
-- **Scoring**: finalizes the active finger’s trial aggregate.
-- **Summary**: exports CSV and shows the bar chart report.
+- **Recording**: captures leakage and enslavement data for the active finger.
+- **Scoring**: finalizes the active finger’s trial aggregate and enslavement row.
+- **Summary**: exports CSV and generates a dual-report (Bars + Heatmap).
 
 ---
 
 ## Key Features
 
 - **Robust Hand Tracking**: Real-time 21-point landmark extraction and full 3D hand pose reconstruction.
-- **Handedness Independence**: Universal support for both Left and Right hand orientations with automatic coordinate adjustment.
-- **Guided Exercise Mode**: A structured state machine (Calibrate -> Prepare -> Record -> Score) that facilitates standardized data capture for all five digits.
+- **Handedness Independence**: Universal support for both Left and Right hand orientations.
+- **Enslavement Matrix (Synergy Mapping)**: Deep-dive analysis of cross-finger motion correlations.
+- **Guided Exercise Mode**: A structured state machine that facilitates standardized data capture.
 - **Leakage-Based Scoring**: Independence scoring based on normalized non-target coupling.
-- **Live Feedback Engine**: Real-time per-finger trial score preview and session bars.
-- **Automated Analytics**: CSV export (with trial reliability) and Matplotlib session plotting.
+- **High-Fidelity Reporting**: Visualizes session results using Matplotlib bars and Seaborn heatmaps.
 
 ---
 
@@ -62,12 +68,12 @@ The runtime state machine is:
 | Component | Technology | Use Case |
 | :--- | :--- | :--- |
 | **Language** | Python 3.10+ | Primary development language |
-| **CV Engine** | [MediaPipe](https://mediapipe.dev/) | 21-point 3D hand landmark extraction |
-| **Processing** | NumPy | High-performance vector mathematics and geometry |
-| **Interface** | OpenCV | Camera capture, frame processing, and UI rendering |
-| **Analytics** | Matplotlib | Generation of session performance graphs |
-| **Data** | CSV | Session metric export |
-| **Testing** | PyTest | Unit testing for biomechanical calculations |
+| **CV Engine** | [MediaPipe](https://mediapipe.dev/) | 3D hand landmark extraction |
+| **Processing** | NumPy / Pandas | Vector math and data structuring |
+| **Interface** | OpenCV | Camera capture and real-time UI |
+| **Analytics** | Matplotlib / Seaborn | Professional session reporting |
+| **Data** | CSV | Metric export for research |
+| **Testing** | PyTest | Production-grade unit testing |
 
 ---
 
@@ -114,9 +120,30 @@ python3 main.py
 
 ---
 
-## System Architecture
+## Project Structure
 
-The project follows a modular pipeline architecture, processing raw visual data into structured biomechanical metrics.
+```text
+.
+├── src/
+│   └── finger_independence/
+│       ├── analytics.py       # Trial aggregation & Heatmap generation
+│       ├── analyzer.py        # Biomechanical math (Palm Plane, MCP Flexion)
+│       ├── config.py          # Centralized configuration & thresholds
+│       ├── exercise_mode.py   # State machine logic
+│       ├── hand_tracker.py    # MediaPipe abstraction & EMA filtering
+│       ├── motion_tracker.py  # Angle smoothing & motion detection
+│       ├── score_engine.py    # Leakage scoring logic
+│       └── visualizer.py      # Real-time UI rendering
+├── tests/                     # Comprehensive PyTest suite
+├── data/                      # Session CSVs and generated PNG reports
+├── main.py                    # Application entry point
+├── requirements.txt           # Dependency management
+└── README.md
+```
+
+---
+
+## System Architecture
 
 ```mermaid
 graph TD
@@ -139,11 +166,14 @@ graph TD
     subgraph "Processing Layer"
         H --> I[Differential Motion Tracker]
         I --> J[Leakage Score Engine]
-        K["Exercise State Machine<br/>(Calibrate -> Prepare -> Record -> Score)"] -- Logic --> J
+        I --> P[Enslavement Matrix Engine]
+        K["Exercise State Machine"] -- Logic --> J
+        K -- Logic --> P
     end
 
     subgraph "Output Layer"
         J -- Scores --> N[Analytics & Reporting]
+        P -- Synergy Map --> N
         K -- State --> N
         K <--> M[Visualizer Engine]
         D -- Overlays --> M
@@ -153,38 +183,16 @@ graph TD
 
     style C fill:#f96,stroke:#333,stroke-width:2px
     style J fill:#69f,stroke:#333,stroke-width:2px
+    style P fill:#f69,stroke:#333,stroke-width:2px
     style K fill:#9f6,stroke:#333,stroke-width:2px
 ```
 
-### Component Breakdown
-- **`hand_tracker.py`**: MediaPipe abstraction and landmark filtering.
-- **`analyzer.py`**: Core biomechanical math (palm frame, MCP flexion, thumb opposition/flexion).
-- **`motion_tracker.py`**: Angle smoothing and baseline-relative thresholded motion.
-- **`score_engine.py`**: Frame-level leakage and independence conversion.
-- **`exercise_mode.py`**: Finite State Machine managing timing and user flow.
-- **`visualizer.py`**: Rendering of the interface and skeletal overlays.
-- **`analytics.py`**: Trial aggregation, reliability (std-dev), CSV export, and plotting.
-
----
-
 ## Testing
 
-The project includes unit tests for:
-- state-machine timing and transitions
-- analyzer angle behavior and edge-case fallback
-- **Signal Isolation**: verified tests ensuring index/ring movement doesn't affect thumb tracking
-- motion smoothing and thresholded motion outputs
-- leakage scoring and coupling behavior
-- analytics trial aggregation behavior
+The project includes a comprehensive suite of unit tests covering biomechanical math, signal isolation, and state machine transitions.
 
 ```bash
-python3 -m pytest tests/
+pytest tests/
 ```
 
----
 
-## License
-
-All Rights Reserved.
-
-This project is proprietary. No permission is granted to use, copy, modify, or distribute this code without prior written consent.

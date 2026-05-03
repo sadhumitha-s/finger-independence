@@ -1,10 +1,10 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from motion_tracker import MotionTracker
+from finger_independence.motion_tracker import MotionTracker
 import numpy as np
-from config import Config
+from finger_independence.config import Config
 
 def test_motion_tracker_initialization():
     tracker = MotionTracker()
