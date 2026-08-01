@@ -6,10 +6,12 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 from typing import Dict, List, Optional
+import threading
 from .config import Config
+from .db_client import db
 
 class Analytics:
-    def __init__(self):
+    def __init__(self, session_id: str = "local-dev-session"):
         self.output_dir = "data"
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
@@ -27,6 +29,10 @@ class Analytics:
         self._trial_frame_count: Dict[int, int] = {}
         self._is_trial_active: Dict[int, bool] = {}
         
+        # Telemetry buffer to batch frame data before sending to DB
+        self._telemetry_buffer: Dict[int, List[List[float]]] = {}
+        self.session_id = session_id
+        
         # Enslavement Matrix (Synergy Mapping)
         # M[i, j] = motion of finger j when finger i is the target
         self.enslavement_matrix = np.zeros((5, 5))
@@ -43,6 +49,7 @@ class Analytics:
         self._trial_leakage_sum = {idx: 0.0 for idx in range(len(Config.FINGERS))}
         self._trial_frame_count = {idx: 0 for idx in range(len(Config.FINGERS))}
         self._is_trial_active = {idx: False for idx in range(len(Config.FINGERS))}
+        self._telemetry_buffer = {idx: [] for idx in range(len(Config.FINGERS))}
         self.enslavement_matrix = np.zeros((5, 5))
         self._matrix_accumulator = np.zeros((5, 5))
         self._matrix_counts = np.zeros(5)
@@ -54,6 +61,7 @@ class Analytics:
         self._trial_leakage_sum[finger_idx] = 0.0
         self._trial_frame_count[finger_idx] = 0
         self._is_trial_active[finger_idx] = False
+        self._telemetry_buffer[finger_idx] = []
         self.results[finger_idx] = 0.0
 
     def _finalize_open_trial(self, finger_idx: int):
@@ -76,6 +84,10 @@ class Analytics:
     ):
         if target_idx not in self.results:
             return
+            
+        # Store raw motion values for telemetry
+        if target_idx in self._telemetry_buffer:
+            self._telemetry_buffer[target_idx].append(motion_values.tolist())
 
         # Validate target motion
         target_motion = float(motion_values[target_idx])
@@ -139,6 +151,16 @@ class Analytics:
         self._trial_scores[finger_idx] = []
         self._trial_leakage_sum[finger_idx] = 0.0
         self._trial_frame_count[finger_idx] = 0
+
+        # Push telemetry to Supabase in a background thread to avoid blocking the video stream
+        if self._telemetry_buffer[finger_idx]:
+            telemetry_data = self._telemetry_buffer[finger_idx].copy()
+            threading.Thread(
+                target=db.insert_telemetry,
+                args=(self.session_id, finger_idx, telemetry_data),
+                daemon=True
+            ).start()
+            self._telemetry_buffer[finger_idx] = []
 
     def export_csv(self):
         if not self.final_results:

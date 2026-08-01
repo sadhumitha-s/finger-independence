@@ -6,6 +6,7 @@ env/
 
 # Project Specific
 /PRD.md
+/research_roadmap.md
 
 # Python
 __pycache__/
