@@ -2,13 +2,7 @@ import sys
 import os
 import subprocess
 
-try:
-    import cv2
-except ImportError:
-    # Streamlit Cloud + Mediapipe hack: uninstall the GUI version of OpenCV that Mediapipe forces
-    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-contrib-python", "opencv-python"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python-headless"])
-    import cv2
+import cv2
 import os
 import av
 import queue
