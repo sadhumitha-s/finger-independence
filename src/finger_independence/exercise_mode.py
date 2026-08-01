@@ -4,6 +4,7 @@ from .config import Config
 
 class State(Enum):
     IDLE = 0
+    STARTING = 6
     CALIBRATE = 1
     PREPARE = 2
     RECORDING = 3
@@ -25,7 +26,7 @@ class ExerciseMode:
     def start(self):
         if self.state == State.IDLE:
             self.current_finger_idx = 0
-            self._change_state(State.CALIBRATE)
+            self._change_state(State.STARTING)
             self.is_paused = False
 
     def pause(self):
@@ -50,7 +51,11 @@ class ExerciseMode:
         if self.is_paused:
             return
 
-        if self.state == State.CALIBRATE:
+        if self.state == State.STARTING:
+            if self.get_time_in_state() >= 3.0:
+                self._change_state(State.CALIBRATE)
+
+        elif self.state == State.CALIBRATE:
              # Calibration is now frame-based, driven by HandAnalyzer.
              # We stay in this state until analyzer.calibrate() is called and state is pushed.
              pass
@@ -81,7 +86,9 @@ class ExerciseMode:
     def get_progress(self) -> float:
         """Returns progress from 0.0 to 1.0 for the current state."""
         time_in_state = self.get_time_in_state()
-        if self.state == State.CALIBRATE:
+        if self.state == State.STARTING:
+            return min(1.0, time_in_state / 3.0)
+        elif self.state == State.CALIBRATE:
             return min(1.0, time_in_state / 2.0)
         elif self.state == State.PREPARE:
             return min(1.0, time_in_state / Config.PREPARE_DURATION_SEC)
@@ -91,8 +98,11 @@ class ExerciseMode:
 
     def get_instruction_text(self) -> str:
         if self.state == State.IDLE:
-            return "Press SPACE to start"
+            return "Click 'Start Session' below to begin"
         
+        if self.state == State.STARTING:
+            return "Get your hand in position..."
+            
         if self.state == State.CALIBRATE:
             if self.is_paused: return "PAUSED (Press P)"
             return "KEEP HAND STILL & FLAT"

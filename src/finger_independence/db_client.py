@@ -19,7 +19,7 @@ class SupabaseClient:
         else:
             self.supabase: Client = create_client(url, key)
 
-    def insert_session(self, user_id: str, final_independence_score: float = None, enslavement_matrix: List[List[float]] = None) -> Optional[str]:
+    def insert_session(self, user_id: str, final_independence_score: float = None, enslavement_matrix: Any = None) -> Optional[str]:
         """Creates a new session record and returns its ID."""
         if not self.supabase:
             import uuid
@@ -39,7 +39,7 @@ class SupabaseClient:
             print(f"Error inserting session: {e}")
             return None
 
-    def update_session(self, session_id: str, final_independence_score: float, enslavement_matrix: List[List[float]]):
+    def update_session(self, session_id: str, final_independence_score: float, enslavement_matrix: Any):
         """Updates a session with the final results."""
         if not self.supabase:
             return

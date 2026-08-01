@@ -5,10 +5,7 @@ from typing import Dict
 
 class Visualizer:
     def __init__(self):
-        self.width = Config.WINDOW_WIDTH
-        self.height = Config.WINDOW_HEIGHT
-        self.left_w = Config.LEFT_PANEL_WIDTH
-        self.right_w = Config.RIGHT_PANEL_WIDTH
+        pass
 
     def create_canvas(self) -> np.ndarray:
         # Create full black canvas
@@ -20,54 +17,49 @@ class Visualizer:
         return canvas
 
     def draw_camera_feed(self, canvas: np.ndarray, frame: np.ndarray):
-        # Resize frame to fit left panel
-        h, w = frame.shape[:2]
-        scale = min(self.left_w / w, self.height / h)
-        new_w, new_h = int(w * scale), int(h * scale)
-        resized = cv2.resize(frame, (new_w, new_h))
-        
-        # Center in left panel
-        y_offset = (self.height - new_h) // 2
-        x_offset = (self.left_w - new_w) // 2
-        canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
+        pass # Streamlit handles drawing the camera feed directly
 
     def draw_ui(self, canvas: np.ndarray, instruction: str, progress: float, scores: Dict[int, float], is_valid_orientation: bool = True):
+        height, width = canvas.shape[:2]
+        left_w = int(width * (Config.LEFT_PANEL_WIDTH / Config.WINDOW_WIDTH))
+        right_w = width - left_w
+
         # Draw instruction text
         color = Config.COLOR_TEXT
-        if "KEEP" in instruction or "INVALID" in instruction:
+        if "KEEP" in instruction or "INVALID" in instruction or "Get your hand" in instruction:
             color = (0, 165, 255) # Orange or Warning color
         
-        cv2.putText(canvas, instruction, (self.left_w + 20, 50),
+        cv2.putText(canvas, instruction, (left_w + 20, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
         
         if not is_valid_orientation:
-             cv2.putText(canvas, "WRONG HAND FACING", (self.left_w + 20, 80),
+             cv2.putText(canvas, "WRONG HAND FACING", (left_w + 20, 80),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, Config.COLOR_WARNING, 1)
 
         # Draw progress bar
         bar_y = 100
         bar_h = 20
-        bar_max_w = self.right_w - 40
-        cv2.rectangle(canvas, (self.left_w + 20, bar_y), 
-                      (self.left_w + 20 + bar_max_w, bar_y + bar_h), 
+        bar_max_w = right_w - 40
+        cv2.rectangle(canvas, (left_w + 20, bar_y), 
+                      (left_w + 20 + bar_max_w, bar_y + bar_h), 
                       Config.COLOR_BAR_BG, -1)
         
         current_w = int(bar_max_w * progress)
         if current_w > 0:
-            cv2.rectangle(canvas, (self.left_w + 20, bar_y), 
-                          (self.left_w + 20 + current_w, bar_y + bar_h), 
+            cv2.rectangle(canvas, (left_w + 20, bar_y), 
+                          (left_w + 20 + current_w, bar_y + bar_h), 
                           Config.COLOR_ACCENT, -1)
 
         # Draw scores bar charts
         chart_y_start = 200
-        bar_spacing = 60
+        bar_spacing = min(60, int(right_w / 6))
         max_bar_h = 200
 
-        cv2.putText(canvas, "Scores", (self.left_w + 20, chart_y_start - 20),
+        cv2.putText(canvas, "Scores", (left_w + 20, chart_y_start - 20),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, Config.COLOR_TEXT, 2)
 
         for i, name in enumerate(Config.FINGERS):
-            x = self.left_w + 40 + (i * bar_spacing)
+            x = left_w + 20 + (i * bar_spacing)
             score = scores.get(i, 0.0)
             
             # Draw background bar
@@ -89,16 +81,3 @@ class Visualizer:
             # Draw text score
             cv2.putText(canvas, f"{score:.2f}", (x - 5, chart_y_start - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, Config.COLOR_TEXT, 1)
-
-        # Draw Controls info
-        controls_y = self.height - 100
-        ctrl_texts = [
-            "SPACE: Start/Continue",
-            "P: Pause",
-            "R: Restart",
-            "S: Skip finger",
-            "Q: Quit"
-        ]
-        for idx, t in enumerate(ctrl_texts):
-            cv2.putText(canvas, t, (self.left_w + 20, controls_y + (idx * 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1)

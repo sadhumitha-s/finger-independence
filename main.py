@@ -203,7 +203,16 @@ with st.expander("My Dashboard", expanded=True):
             score = sess.get('final_independence_score')
             score_str = f"{score:.2f}" if score is not None else "Incomplete"
             date_str = str(sess.get('created_at', ''))[:10]
-            st.write(f"- **{date_str}**: Score: **{score_str}**")
+            
+            sess_data = sess.get('enslavement_matrix_json')
+            if isinstance(sess_data, dict) and 'scores' in sess_data:
+                scores = sess_data['scores']
+                from finger_independence.config import Config
+                scores_str = " | ".join([f"{Config.FINGERS[int(k)][:3]}: {v:.2f}" for k, v in scores.items()])
+                st.write(f"- **{date_str}**: Total Score: **{score_str}**")
+                st.write(f"  - {scores_str}")
+            else:
+                st.write(f"- **{date_str}**: Score: **{score_str}**")
 
 webrtc_ctx = webrtc_streamer(
     key="finger-tracker",

@@ -182,7 +182,10 @@ class Analytics:
         # Calculate overall score and update DB
         overall_score = float(np.mean(list(self.final_results.values())))
         if self.session_id and self.session_id != "local-dev-session":
-            db.update_session(self.session_id, overall_score, self.enslavement_matrix.tolist())
+            db.update_session(self.session_id, overall_score, {
+                "matrix": self.enslavement_matrix.tolist(),
+                "scores": self.final_results
+            })
 
     def plot_results(self):
         if not self.final_results:
