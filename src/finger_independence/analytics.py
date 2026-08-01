@@ -226,7 +226,7 @@ class Analytics:
         plot_path = os.path.join(self.output_dir, f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
         plt.savefig(plot_path)
         print(f"Analytics report saved to {plot_path}")
-        plt.show()
+        return fig
 
     def reset(self):
         self._initialize_finger_maps()
