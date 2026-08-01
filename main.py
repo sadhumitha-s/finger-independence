@@ -160,6 +160,9 @@ class FingerProcessor:
                     self.result_queue.put(fig)
                     self.exercise.restart()
                     self.analytics.reset()
+                    
+                    import gc
+                    gc.collect()
 
                 self.previous_state = self.exercise.state
 

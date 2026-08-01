@@ -182,6 +182,9 @@ class Analytics:
         if not self.final_results:
             return
 
+        import matplotlib
+        matplotlib.use('Agg')
+        
         # Create a figure with two subplots: Bar chart and Heatmap
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
 
@@ -225,6 +228,10 @@ class Analytics:
         # Save plot for reference
         plot_path = os.path.join(self.output_dir, f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
         plt.savefig(plot_path)
+        
+        # Close the plot to free memory
+        plt.close(fig)
+        
         print(f"Analytics report saved to {plot_path}")
         return fig
 
