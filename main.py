@@ -24,9 +24,28 @@ st.set_page_config(page_title="Finger Independence", layout="wide")
 st.title("Finger Independence Tracker")
 st.markdown("Follow the instructions on the video feed.")
 
-# Use standard STUN server
+import json
+import urllib.request
+
+@st.cache_data
+def get_ice_servers():
+    """Use Metered TURN server if credentials are set, otherwise fallback to Google STUN."""
+    try:
+        metered_domain = os.environ.get("METERED_DOMAIN") 
+        metered_api_key = os.environ.get("METERED_API_KEY")
+        if metered_domain and metered_api_key:
+            url = f"https://{metered_domain}/api/v1/turn/credentials?apiKey={metered_api_key}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req) as response:
+                return json.loads(response.read().decode())
+    except Exception as e:
+        print(f"Failed to get Metered ICE servers: {e}")
+        
+    # 2. Fallback to Google STUN
+    return [{"urls": ["stun:stun.l.google.com:19302"]}]
+
 RTC_CONFIGURATION = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    {"iceServers": get_ice_servers()}
 )
 
 class FingerProcessor:
