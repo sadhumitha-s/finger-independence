@@ -6,6 +6,12 @@ from .config import Config
 
 logger = logging.getLogger(__name__)
 
+# Initialize MediaPipe solutions at the module level to avoid lazy-loading issues
+# in background threads (e.g., Streamlit WebRTC)
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
+
 class LandmarkSmoother:
     def __init__(self, alpha: float):
         self.alpha = alpha
@@ -31,9 +37,9 @@ class LandmarkSmoother:
 
 class HandTracker:
     def __init__(self):
-        self.mp_hands = mp.solutions.hands
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_drawing_styles = mp.solutions.drawing_styles
+        self.mp_hands = mp_hands
+        self.mp_drawing = mp_drawing
+        self.mp_drawing_styles = mp_drawing_styles
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
             max_num_hands=1,
