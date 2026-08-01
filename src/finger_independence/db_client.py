@@ -26,14 +26,14 @@ class SupabaseClient:
             return str(uuid.uuid4())
             
         try:
-            data, count = self.supabase.table("sessions").insert({
+            response = self.supabase.table("sessions").insert({
                 "user_id": user_id,
                 "final_independence_score": final_independence_score,
                 "enslavement_matrix_json": enslavement_matrix
             }).execute()
             
-            if data and data[1]:
-                return data[1][0].get("id")
+            if response.data and len(response.data) > 0:
+                return response.data[0].get("id")
             return None
         except Exception as e:
             print(f"Error inserting session: {e}")
@@ -73,16 +73,16 @@ class SupabaseClient:
             return []
             
         try:
-            data, count = self.supabase.table("sessions") \
+            response = self.supabase.table("sessions") \
                 .select("*") \
                 .eq("user_id", user_id) \
                 .order("created_at", desc=True) \
                 .limit(limit) \
                 .execute()
                 
-            if data and data[1]:
+            if response.data:
                 # Return sorted chronologically (oldest to newest) for easier trend analysis
-                sessions = data[1]
+                sessions = response.data
                 sessions.reverse() 
                 return sessions
             return []
@@ -96,7 +96,7 @@ class SupabaseClient:
             return False
             
         try:
-            data, count = self.supabase.table("users").insert({
+            response = self.supabase.table("users").insert({
                 "username": username,
                 "password_hash": password_hash
             }).execute()
@@ -111,9 +111,9 @@ class SupabaseClient:
             return None
             
         try:
-            data, count = self.supabase.table("users").select("*").eq("username", username).execute()
-            if data and data[1] and len(data[1]) > 0:
-                return data[1][0]
+            response = self.supabase.table("users").select("*").eq("username", username).execute()
+            if response.data and len(response.data) > 0:
+                return response.data[0]
             return None
         except Exception as e:
             print(f"Error fetching user: {e}")
