@@ -32,6 +32,7 @@ class Analytics:
         # Telemetry buffer to batch frame data before sending to DB
         self._telemetry_buffer: Dict[int, List[List[float]]] = {}
         self.session_id = session_id
+        self.user_id = "guest"
         
         # Enslavement Matrix (Synergy Mapping)
         # M[i, j] = motion of finger j when finger i is the target
@@ -177,6 +178,11 @@ class Analytics:
                 std_dev = self.trial_std_dev.get(finger_idx, 0.0)
                 writer.writerow([timestamp, finger_idx, Config.FINGERS[finger_idx], f"{score:.4f}", f"{std_dev:.4f}"])
         print(f"Results exported to {self.filename}")
+        
+        # Calculate overall score and update DB
+        overall_score = float(np.mean(list(self.final_results.values())))
+        if self.session_id and self.session_id != "local-dev-session":
+            db.update_session(self.session_id, overall_score, self.enslavement_matrix.tolist())
 
     def plot_results(self):
         if not self.final_results:
@@ -235,5 +241,8 @@ class Analytics:
         print(f"Analytics report saved to {plot_path}")
         return fig
 
-    def reset(self):
+    def reset(self, user_id=None):
         self._initialize_finger_maps()
+        if user_id:
+            self.user_id = user_id
+            self.session_id = db.insert_session(user_id=self.user_id)

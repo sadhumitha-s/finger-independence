@@ -19,10 +19,11 @@ class SupabaseClient:
         else:
             self.supabase: Client = create_client(url, key)
 
-    def insert_session(self, user_id: str, final_independence_score: float, enslavement_matrix: List[List[float]]) -> Optional[str]:
+    def insert_session(self, user_id: str, final_independence_score: float = None, enslavement_matrix: List[List[float]] = None) -> Optional[str]:
         """Creates a new session record and returns its ID."""
         if not self.supabase:
-            return "mock-session-id"
+            import uuid
+            return str(uuid.uuid4())
             
         try:
             data, count = self.supabase.table("sessions").insert({
@@ -37,6 +38,19 @@ class SupabaseClient:
         except Exception as e:
             print(f"Error inserting session: {e}")
             return None
+
+    def update_session(self, session_id: str, final_independence_score: float, enslavement_matrix: List[List[float]]):
+        """Updates a session with the final results."""
+        if not self.supabase:
+            return
+            
+        try:
+            self.supabase.table("sessions").update({
+                "final_independence_score": final_independence_score,
+                "enslavement_matrix_json": enslavement_matrix
+            }).eq("id", session_id).execute()
+        except Exception as e:
+            print(f"Error updating session {session_id}: {e}")
 
     def insert_telemetry(self, session_id: str, finger_id: int, frame_data: List[List[float]]):
         """Inserts batched frame data for a specific finger in a session."""
@@ -75,6 +89,35 @@ class SupabaseClient:
         except Exception as e:
             print(f"Error fetching recent sessions: {e}")
             return []
+
+    def create_user(self, username: str, password_hash: str) -> bool:
+        """Creates a new user with the given username and password hash. Returns True on success, False if username exists or error."""
+        if not self.supabase:
+            return False
+            
+        try:
+            data, count = self.supabase.table("users").insert({
+                "username": username,
+                "password_hash": password_hash
+            }).execute()
+            return True
+        except Exception as e:
+            print(f"Error creating user (might already exist): {e}")
+            return False
+
+    def get_user(self, username: str) -> Optional[Dict[str, Any]]:
+        """Fetches the user record by username."""
+        if not self.supabase:
+            return None
+            
+        try:
+            data, count = self.supabase.table("users").select("*").eq("username", username).execute()
+            if data and data[1] and len(data[1]) > 0:
+                return data[1][0]
+            return None
+        except Exception as e:
+            print(f"Error fetching user: {e}")
+            return None
 
 # Singleton instance for easy import
 db = SupabaseClient()

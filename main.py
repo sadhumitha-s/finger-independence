@@ -20,7 +20,16 @@ from finger_independence.visualizer import Visualizer
 from finger_independence.analytics import Analytics
 from finger_independence.analyzer import HandAnalyzer
 
+import hashlib
+from finger_independence.db_client import db
+
 st.set_page_config(page_title="Finger Independence", layout="wide")
+
+from finger_independence.auth import check_password
+
+if not check_password():
+    st.stop()
+
 st.title("Finger Independence Tracker")
 st.markdown("Follow the instructions on the video feed.")
 
@@ -76,16 +85,16 @@ class FingerProcessor:
             with self.lock:
                 while not self.command_queue.empty():
                     cmd = self.command_queue.get_nowait()
-                    if cmd == "START":
+                    if isinstance(cmd, tuple) and cmd[0] == "START":
                         if self.exercise.state == State.IDLE:
                             self.exercise.start()
-                            self.analytics.reset()
+                            self.analytics.reset(user_id=cmd[1])
                             self.calibration_frames.clear()
                     elif cmd == "PAUSE":
                         self.exercise.pause()
-                    elif cmd == "RESTART":
+                    elif isinstance(cmd, tuple) and cmd[0] == "RESTART":
                         self.exercise.restart()
-                        self.analytics.reset()
+                        self.analytics.reset(user_id=cmd[1])
                         self.calibration_frames.clear()
                     elif cmd == "SKIP":
                         self.exercise.skip_finger()
@@ -159,7 +168,7 @@ class FingerProcessor:
                     # Send figure back to Streamlit UI thread
                     self.result_queue.put(fig)
                     self.exercise.restart()
-                    self.analytics.reset()
+                    self.analytics.reset(user_id=self.analytics.user_id)
                     
                     import gc
                     gc.collect()
@@ -183,6 +192,19 @@ class FingerProcessor:
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
+# Dashboard
+with st.expander("My Dashboard", expanded=True):
+    recent_sessions = db.get_recent_sessions(st.session_state.get("current_user", "guest"), limit=5)
+    if not recent_sessions:
+        st.info("No previous sessions found. Start your first session!")
+    else:
+        st.write("Your recent sessions:")
+        for sess in recent_sessions:
+            score = sess.get('final_independence_score')
+            score_str = f"{score:.2f}" if score is not None else "Incomplete"
+            date_str = str(sess.get('created_at', ''))[:10]
+            st.write(f"- **{date_str}**: Score: **{score_str}**")
+
 webrtc_ctx = webrtc_streamer(
     key="finger-tracker",
     mode=WebRtcMode.SENDRECV,
@@ -204,13 +226,13 @@ col1, col2, col3, col4 = st.columns(4)
 
 if webrtc_ctx.video_processor:
     if col1.button("Start Session", use_container_width=True):
-        webrtc_ctx.video_processor.command_queue.put("START")
+        webrtc_ctx.video_processor.command_queue.put(("START", st.session_state["current_user"]))
     if col2.button("Pause / Resume", use_container_width=True):
         webrtc_ctx.video_processor.command_queue.put("PAUSE")
     if col3.button("Skip Finger", use_container_width=True):
         webrtc_ctx.video_processor.command_queue.put("SKIP")
     if col4.button("Restart", use_container_width=True):
-        webrtc_ctx.video_processor.command_queue.put("RESTART")
+        webrtc_ctx.video_processor.command_queue.put(("RESTART", st.session_state["current_user"]))
         
     # Check if there is a summary plot
     while not webrtc_ctx.video_processor.result_queue.empty():

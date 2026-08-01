@@ -50,11 +50,17 @@ The runtime state machine is:
 - **Scoring**: finalizes the active finger’s trial aggregate and enslavement row.
 - **Summary**: exports CSV and generates a dual-report (Bars + Heatmap).
 
+### 5. User Authentication & History
+The system supports a full Supabase-backed authentication module:
+- **Sign Up / Login**: Users can create custom accounts (username/password) to securely track their progress over time.
+- **Session History**: After logging in, a built-in dashboard displays the last 5 sessions, allowing users to review their previous scores (stored securely in a Supabase cloud database) before starting a new diagnostic cycle.
+
 ---
 
 ## Key Features
 
 - **Robust Hand Tracking**: Real-time 21-point landmark extraction and full 3D hand pose reconstruction.
+- **Secure User Profiles**: Dynamically create profiles and retrieve historical telemetry via Supabase integration.
 - **Handedness Independence**: Universal support for both Left and Right hand orientations.
 - **Enslavement Matrix (Synergy Mapping)**: Deep-dive analysis of cross-finger motion correlations.
 - **Guided Exercise Mode**: A structured state machine that facilitates standardized data capture.
