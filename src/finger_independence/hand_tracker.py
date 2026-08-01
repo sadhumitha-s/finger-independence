@@ -1,15 +1,15 @@
 import cv2
 import mediapipe as mp
-from mediapipe.python.solutions import hands as mp_hands
-from mediapipe.python.solutions import drawing_utils as mp_drawing
-from mediapipe.python.solutions import drawing_styles as mp_drawing_styles
 from typing import Optional, List, Tuple
 import logging
 from .config import Config
 
 logger = logging.getLogger(__name__)
 
-class LandmarkSmoother:
+# Standard mediapipe initialization
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
     def __init__(self, alpha: float):
         self.alpha = alpha
         self.previous_landmarks = None
