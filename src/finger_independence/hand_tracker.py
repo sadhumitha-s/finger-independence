@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
+
+class LandmarkSmoother:
     def __init__(self, alpha: float):
         self.alpha = alpha
         self.previous_landmarks = None
